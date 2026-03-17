@@ -57,4 +57,4 @@ COPY src/templates templates
 EXPOSE 8080
 
 # Command to run the application
-CMD ["uvicorn", "src.omnidigest.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "omnidigest.main:app", "--host", "0.0.0.0", "--port", "8080"]
