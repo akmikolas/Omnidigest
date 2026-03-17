@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.4] - 2026-03-18
+
+### Added
+- **Mobile Responsive Design**: Full mobile support for all pages
+  - Added drawer-style sidebar navigation for mobile devices
+  - Added mobile-specific header with hamburger menu
+  - Added overlay for mobile menu backdrop
+  - Added 480px and 375px breakpoint styles
+  - Added PWA support with `apple-mobile-web-app-capable` and viewport restrictions
+
+- **Responsive Adapters for All Pages**:
+  - Dashboard: Vertical stat cards, adaptive event list heights
+  - Config: Grid transforms from 4→2→1 columns on smaller screens
+  - Sources: Form and list cards responsive adaptation
+  - TokenStats: Responsive stat cards, horizontal table scrolling
+  - KnowledgeGraph: Adaptive stat cards and graph heights
+
+- **Global CSS Enhancements**:
+  - Added comprehensive mobile media queries in main.css
+  - Optimized padding, font sizes, and button sizes for touch devices
+
+### Changed
+- Updated index.html with proper mobile viewport meta tags
+- Theme color updated to match dark sidebar (#1a1a2e)
+
+---
+
 ## [2.3.2] - 2026-03-17
 
 ### Added

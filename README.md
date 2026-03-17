@@ -6,7 +6,7 @@
 [![Python Version](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 [![Vue 3](https://img.shields.io/badge/Vue-3+-42b883.svg)](https://vuejs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Version](https://img.shields.io/badge/Version-2.3.2-6366f1.svg)](https://github.com/akmikolas/Omnidigest)
+[![Version](https://img.shields.io/badge/Version-2.3.4-6366f1.svg)](https://github.com/akmikolas/Omnidigest)
 
 *Automated AI-powered news aggregation, classification, and summarization system with real-time intelligence monitoring*
 
@@ -387,7 +387,7 @@ git push origin feature/amazing-feature
 
 <div align="center">
 
-*Version 2.3.2 | Last Updated: 2026-03-17*
+*Version 2.3.4 | Last Updated: 2026-03-18*
 
 **OmniDigest** - Your AI-Powered News Intelligence Platform
 
