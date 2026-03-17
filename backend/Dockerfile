@@ -22,14 +22,14 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy the requirements file into the container
-COPY backend/requirements.txt .
+COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install the omnidigest package in editable mode
-COPY backend/pyproject.toml .
-COPY backend/src src
+COPY pyproject.toml .
+COPY src src
 RUN pip install --no-cache-dir -e .
 
 
