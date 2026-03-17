@@ -69,7 +69,9 @@ services:
   # 后端 API 服务
   # ===========================================
   omnidigest:
-    image: omnidigest:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: omnidigest_app
     restart: always
     ports:
@@ -89,7 +91,7 @@ services:
       # 生产环境可设置为 true 禁用定时抓取任务
       # - DISABLE_SCHEDULER=true
     volumes:
-      - ./templates:/app/templates
+      - ./backend/src/omnidigest/templates:/app/templates
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,7 +104,9 @@ services:
   # 前端 Web 服务
   # ===========================================
   frontend:
-    image: omnidigest-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: omnidigest_frontend
     restart: always
     ports:

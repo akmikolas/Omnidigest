@@ -22,14 +22,14 @@ class NotificationService:
         Initializes the notification service by setting up the Jinja2 template environment.
         通过设置 Jinja2 模板环境来初始化推送服务。
         
-        Loads templates from the 'src/omnidigest/templates' directory.
-        从 'src/omnidigest/templates' 目录加载模板。
+        Loads templates from the package templates directory.
+        从包模板目录加载模板。
         """
         import jinja2
         from pathlib import Path
-        
-        # Resolve the template directory path (src/omnidigest/templates)
-        # 解析模板目录路径（src/omnidigest/templates）
+
+        # Resolve the template directory path (relative to this file)
+        # 解析模板目录路径（相对于此文件）
         template_dir_path = Path(__file__).resolve().parent.parent / "templates"
         
         # Setup Jinja2 environment

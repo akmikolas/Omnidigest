@@ -106,6 +106,7 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # 2. Install dependencies
+cd backend
 pip install -e .
 
 # 3. Start PostgreSQL via Docker
@@ -147,27 +148,40 @@ curl http://localhost:8080/api/health
 
 ```
 .
-├── src/omnidigest/           # Core backend package
-│   ├── api/                  # FastAPI routes & dependencies
-│   ├── cli/                  # CLI command handlers
-│   ├── core/                 # Infrastructure (Config, DB, LLM)
-│   ├── domains/              # Feature-based domain modules
-│   │   ├── ingestion/        # RSS & Twitter data ingestion
-│   │   ├── breaking_news/    # Breaking news pipeline
-│   │   ├── daily_digest/     # Daily summary processing
-│   │   ├── knowledge_graph/  # Dgraph triple extraction
-│   │   └── analysis/         # A-share market analysis
-│   ├── jobs/                 # Background scheduler
-│   ├── notifications/        # Multi-platform push
-│   ├── main.py              # Application entry
-│   └── manage.py            # CLI management tool
+├── backend/                  # Python backend (OmniDigest)
+│   ├── src/omnidigest/     # Core package
+│   │   ├── api/            # FastAPI routes & dependencies
+│   │   ├── cli/            # CLI command handlers
+│   │   ├── core/           # Infrastructure (Config, DB, LLM)
+│   │   ├── domains/        # Feature-based domain modules
+│   │   │   ├── ingestion/  # RSS & Twitter data ingestion
+│   │   │   ├── breaking_news/  # Breaking news pipeline
+│   │   │   ├── daily_digest/   # Daily summary processing
+│   │   │   ├── knowledge_graph/ # Dgraph triple extraction
+│   │   │   └── analysis/   # A-share market analysis
+│   │   ├── jobs/           # Background scheduler
+│   │   ├── migrations/     # Database migrations
+│   │   ├── notifications/  # Multi-platform push
+│   │   ├── templates/      # Jinja2 notification templates
+│   │   ├── main.py        # Application entry
+│   │   ├── manage.py      # CLI management tool
+│   │   └── config.py      # Configuration
+│   ├── pyproject.toml     # Python package config
+│   ├── requirements.txt   # Dependencies
+│   ├── Makefile          # CLI shortcuts
+│   └── Dockerfile        # Container build
 ├── frontend/                 # Vue 3 + Vite frontend
-│   ├── src/views/           # Page components
-│   └── public/              # Static assets & logos
+│   ├── src/               # Frontend source
+│   │   ├── views/         # Page components
+│   │   ├── api/           # API client
+│   │   └── router/        # Vue Router
+│   ├── public/            # Static assets & logos
+│   ├── package.json       # Dependencies
+│   ├── vite.config.js     # Vite config
+│   └── Dockerfile         # Container build
 ├── docs/                    # Documentation
-├── Makefile                 # CLI shortcuts
 ├── docker-compose.yml       # Container orchestration
-└── pyproject.toml           # Python package config
+└── README.md               # This file
 ```
 
 ---

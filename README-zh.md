@@ -106,6 +106,7 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # 2. 安装依赖
+cd backend
 pip install -e .
 
 # 3. 通过 Docker 启动 PostgreSQL
@@ -147,27 +148,40 @@ curl http://localhost:8080/api/health
 
 ```
 .
-├── src/omnidigest/           # 核心后端包
-│   ├── api/                  # FastAPI 路由与依赖
-│   ├── cli/                  # CLI 命令处理器
-│   ├── core/                 # 基础设施（配置、数据库、LLM）
-│   ├── domains/              # 领域业务模块
-│   │   ├── ingestion/        # RSS 与 Twitter 数据获取
-│   │   ├── breaking_news/    # 突发新闻流水线
-│   │   ├── daily_digest/     # 每日摘要处理
-│   │   ├── knowledge_graph/  # Dgraph 三元组抽取
-│   │   └── analysis/         # A 股市场分析
-│   ├── jobs/                 # 后台调度器
-│   ├── notifications/        # 多平台推送
-│   ├── main.py              # 应用入口
-│   └── manage.py            # CLI 管理工具
+├── backend/                  # Python 后端 (OmniDigest)
+│   ├── src/omnidigest/     # 核心包
+│   │   ├── api/            # FastAPI 路由与依赖
+│   │   ├── cli/            # CLI 命令处理器
+│   │   ├── core/           # 基础设施（配置、数据库、LLM）
+│   │   ├── domains/        # 领域业务模块
+│   │   │   ├── ingestion/  # RSS 与 Twitter 数据获取
+│   │   │   ├── breaking_news/  # 突发新闻流水线
+│   │   │   ├── daily_digest/   # 每日摘要处理
+│   │   │   ├── knowledge_graph/ # Dgraph 三元组抽取
+│   │   │   └── analysis/   # A 股市场分析
+│   │   ├── jobs/           # 后台调度器
+│   │   ├── migrations/     # 数据库迁移
+│   │   ├── notifications/  # 多平台推送
+│   │   ├── templates/      # Jinja2 通知模板
+│   │   ├── main.py        # 应用入口
+│   │   ├── manage.py      # CLI 管理工具
+│   │   └── config.py      # 配置
+│   ├── pyproject.toml     # Python 包配置
+│   ├── requirements.txt   # 依赖
+│   ├── Makefile          # CLI 快捷方式
+│   └── Dockerfile        # 容器构建
 ├── frontend/                 # Vue 3 + Vite 前端
-│   ├── src/views/           # 页面组件
-│   └── public/              # 静态资源与 Logo
+│   ├── src/               # 前端源码
+│   │   ├── views/         # 页面组件
+│   │   ├── api/           # API 客户端
+│   │   └── router/        # Vue Router
+│   ├── public/            # 静态资源与 Logo
+│   ├── package.json       # 依赖
+│   ├── vite.config.js    # Vite 配置
+│   └── Dockerfile        # 容器构建
 ├── docs/                    # 文档
-├── Makefile                 # CLI 快捷方式
 ├── docker-compose.yml       # 容器编排
-└── pyproject.toml           # Python 包配置
+└── README.md              # 本文件
 ```
 
 ---
