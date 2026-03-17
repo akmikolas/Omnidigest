@@ -22,14 +22,14 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy the requirements file into the container
-COPY requirements.txt .
+COPY backend/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install the omnidigest package in editable mode
-COPY pyproject.toml .
-COPY src src
+COPY backend/pyproject.toml .
+COPY backend/src src
 RUN pip install --no-cache-dir -e .
 
 
@@ -50,7 +50,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY --from=builder /opt/venv /opt/venv
 
 # Copy the rest of the application code
-COPY . .
+COPY backend/src src
+COPY backend/src/templates templates
 
 # Expose the port the app runs on
 EXPOSE 8080
