@@ -50,8 +50,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY --from=builder /opt/venv /opt/venv
 
 # Copy the rest of the application code
-COPY backend/src src
-COPY backend/src/templates templates
+COPY src src
+COPY src/templates templates
 
 # Expose the port the app runs on
 EXPOSE 8080
