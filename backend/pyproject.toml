@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "omnidigest"
 version = "2.3.2"
 description = "Automated AI-powered news aggregation, classification, and summarization system with real-time intelligence monitoring"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
