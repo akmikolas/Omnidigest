@@ -1,8 +1,8 @@
-# OmniDigest (万象简报)
+# OmniDigest
+
+[中文 README](./README-zh.md)
 
 OmniDigest is a fully automated, AI-powered news aggregation, classification, and summarization backend with real-time intelligence monitoring.
-
-OmniDigest 是一个高度自动化的、AI 驱动的新闻聚合、分类和汇总后端服务，具备实时情报监测能力。
 
 **Core Pipeline (v1.0+)**: Scheduled RSS Crawling → PostgreSQL → One-Pass LLM Classification & Scoring → AI Daily Summary → Multi-Platform Push (Telegram / DingTalk)
 
@@ -21,13 +21,13 @@ OmniDigest 是一个高度自动化的、AI 驱动的新闻聚合、分类和汇
 
 ```text
 .
-├── src/omnidigest/            # Core source package / 核心源码包
+├── src/omnidigest/            # Core source package
 │   ├── api/                   # FastAPI routes & Dependencies (router, deps, auth)
 │   ├── cli/                   # CLI command handlers (db, rss, jobs, auth, rag, kg, twitter, tests, lint)
 │   ├── core/                  # Infrastructure (Config, Database Connection, LLM Management)
 │   │   └── onepass.py       # Generic One-Pass framework for unified AI analysis
-│   ├── domains/               # Feature-based Domain Modules / 领域业务模块
-│   │   ├── ingestion/         # Data ingestion domain / 数据获取领域
+│   ├── domains/               # Feature-based Domain Modules
+│   │   ├── ingestion/         # Data ingestion domain
 │   │   │   ├── rss/          # Standard & breaking RSS crawling & data access
 │   │   │   └── twitter/      # Twitter/X GraphQL scraping & data access
 │   │   ├── breaking_news/     # Fast-lane polling, One-Pass triage, clustering & story timelines
@@ -47,24 +47,24 @@ OmniDigest 是一个高度自动化的、AI 驱动的新闻聚合、分类和汇
 │   └── manage.py              # CLI management tool entry
 ├── tests/                     # Test suite & diagnostics
 ├── docs/                      # Documentation (ChangeLog, Standards)
-├── frontend/                  # Vue 3 + Vite 前端应用
-│   ├── src/                   # 前端源码
-│   │   ├── views/           # Vue 页面组件
-│   │   └── main.js          # 前端入口
-│   ├── public/               # 静态资源 (favicon, icons)
-│   ├── index.html            # HTML 入口
-│   ├── vite.config.js        # Vite 配置
-│   └── package.json          # 前端依赖
-├── Makefile                   # CLI shortcuts / 命令快捷方式
+├── frontend/                  # Vue 3 + Vite frontend application
+│   ├── src/                   # Frontend source code
+│   │   ├── views/           # Vue page components
+│   │   └── main.js          # Frontend entry
+│   ├── public/               # Static assets (favicon, icons)
+│   ├── index.html            # HTML entry
+│   ├── vite.config.js        # Vite configuration
+│   └── package.json          # Frontend dependencies
+├── Makefile                   # CLI shortcuts
 ├── Dockerfile                 # Multi-stage Docker build
 ├── docker-compose.yml         # Container orchestration
 ├── pyproject.toml             # Python package config
 └── .env.example               # Environment variable template
 ```
 
-## 2. Quick Start / 快速开始
+## 2. Quick Start
 
-### 2.1 Prerequisites / 环境准备
+### 2.1 Prerequisites
 
 1. **Start database**:
    ```bash
@@ -87,7 +87,7 @@ OmniDigest 是一个高度自动化的、AI 驱动的新闻聚合、分类和汇
    docker-compose up -d
    ```
 
-### 2.2 Run the System / 运行系统
+### 2.2 Run the System
 
 **Docker (recommended)**:
 ```bash
@@ -101,7 +101,7 @@ python -m omnidigest.main
 
 The API server starts at `http://0.0.0.0:8080`.
 
-### 2.3 Installation from Scratch / 从头安装
+### 2.3 Installation from Scratch
 
 This section describes how to set up OmniDigest from a fresh installation.
 
@@ -117,7 +117,7 @@ This section describes how to set up OmniDigest from a fresh installation.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-repo/omnidigest.git
+git clone https://github.com/akmikolas/Omnidigest.git
 cd omnidigest
 
 # 2. Copy environment template
@@ -220,29 +220,29 @@ curl http://localhost:8080/api/stats/overview
 
 ---
 
-## 3. Makefile Commands / 命令快捷方式
+## 3. Makefile Commands
 
 All common operations are available via `make`:
 
 | Command | Description |
 |---|---|
-| `make db-init` | Initialize database schema / 初始化数据库 |
-| `make db-migrate` | Run all pending database migrations / 运行所有待处理的数据库迁移 |
-| `make rss-add URL=...` | Add a new RSS feed / 添加新的 RSS 源 |
-| `make rss-check` | List disabled/failed feeds / 检查失效的 RSS 源 |
-| `make trigger-summary` | Manually trigger daily summary / 手动触发每日总结 |
-| `make cleanup` | Remove low-quality articles / 清理低质量文章 |
-| `make test-tg` | Test breaking news push to Telegram / 测试 Telegram 突发推送 |
-| `make test-dingtalk` | Test breaking news push to DingTalk / 测试钉钉突发推送 |
-| `make test-push` | Test push to all platforms / 测试全平台推送 |
-| `make lint` | Lint bilingual docstrings / 检查双语文档字符串 |
-| `make help` | Show all available commands / 显示所有可用命令 |
+| `make db-init` | Initialize database schema |
+| `make db-migrate` | Run all pending database migrations |
+| `make rss-add URL=...` | Add a new RSS feed |
+| `make rss-check` | List disabled/failed feeds |
+| `make trigger-summary` | Manually trigger daily summary |
+| `make cleanup` | Remove low-quality articles |
+| `make test-tg` | Test breaking news push to Telegram |
+| `make test-dingtalk` | Test breaking news push to DingTalk |
+| `make test-push` | Test push to all platforms |
+| `make lint` | Lint bilingual docstrings |
+| `make help` | Show all available commands |
 
 For the full list, run `make help`.
 
-## 4. Core Features / 核心功能
+## 4. Core Features
 
-### 4.1 Daily Digest Pipeline / 每日简报流水线 (v1.0+, v1.9+ One-Pass)
+### 4.1 Daily Digest Pipeline (v1.0+, v1.9+ One-Pass)
 
 1.  **Crawling** (`NewsCrawler`): Parallel RSS fetching with 15s timeout and auto-disable for persistently failing feeds.
 2.  **One-Pass Processing** (`ContentProcessor`): Unified LLM-powered batch classification into 7 categories using the generic OnePass framework. Consolidates batch processing into single structured `instructor` requests for maximum efficiency.
@@ -250,7 +250,7 @@ For the full list, run `make help`.
 4.  **Summary & Push** (`AnalysisService` → `NotificationService`): Configurable cron schedule, bilingual Jinja2 templates, simultaneous Telegram HTML + DingTalk Markdown delivery.
 5.  **Auto Cleanup**: Daily removal of articles scoring below threshold.
 
-### 4.2 Breaking News System / 突发新闻系统 (v1.3+, v1.9+ One-Pass)
+### 4.2 Breaking News System (v1.3+, v1.9+ One-Pass)
 
 A completely independent, real-time news alert pipeline:
 
@@ -261,7 +261,7 @@ A completely independent, real-time news alert pipeline:
 5.  **Impact Scoring**: Stories are scored 0-100. Only stories exceeding `BREAKING_IMPACT_THRESHOLD` trigger instant alerts, which include a robust timeline of child events spanning days or years with direct source hyperlinks.
 6.  **Real-Time Alerting** (`BreakingAlerter`): Continuously monitors the database and pushes verified, high-impact stories to configured platforms with HTML (Telegram) and Markdown (DingTalk) formatted notifications.
 
-### 4.3 Twitter Intelligence & Influence Monitoring / 推特情报监测 (v1.7+, v1.9+ One-Pass)
+### 4.3 Twitter Intelligence & Influence Monitoring (v1.7+, v1.9+ One-Pass)
 
 A high-efficiency monitoring system for global influencers and world leaders:
 
@@ -272,7 +272,7 @@ A high-efficiency monitoring system for global influencers and world leaders:
 5.  **Influential Leader Monitoring**: Tracks 16+ high-profile accounts (World Leaders, News Wires, Global Organizations) for real-time policy and sentiment tracking.
 6.  **DingTalk Compliance**: Includes "新闻" keyword in alerts to meet DingTalk robot requirements.
 
-### 4.4 Knowledge Graph Extraction Engine / 知识图谱抽取引擎 (v1.5+)
+### 4.4 Knowledge Graph Extraction Engine (v1.5+)
 
 A systematic entity and relationship extraction pipeline built on top of Dgraph:
 
@@ -282,7 +282,7 @@ A systematic entity and relationship extraction pipeline built on top of Dgraph:
 4.  **LLM Failover Integration**: Leverages the centralized `LLMManager` for automatic model failover and retry logic.
 5.  **Trigger Mechanisms**: Runs every 15 minutes automatically, fully controllable via CLI (`manage.py kg extract`) and API (`/trigger/kg_extract`) with thread-safe concurrency locks.
 
-### 4.5 LLM Management & Robustness / 大模型管理与健壮性 (v1.5+)
+### 4.5 LLM Management & Robustness (v1.5+)
 
 A robust multi-model management system ensuring high availability and provider compatibility:
 
@@ -292,7 +292,7 @@ A robust multi-model management system ensuring high availability and provider c
 4.  **Token Usage Tracking**: System-wide logging of prompt and completion tokens for audit and cost control (`llm_usage` table).
 5.  **Centralized Management**: All models, API keys, and base URLs are managed via the `llm_models` database table with priority-based selection.
 
-### 4.6 A-Share Market Analysis / A股趋势分析 (v1.8+)
+### 4.6 A-Share Market Analysis (v1.8+)
 
 An automated A-share (China stock market) trend analysis system:
 
@@ -304,7 +304,7 @@ An automated A-share (China stock market) trend analysis system:
 4.  **Prediction Tracking**: Stores predictions in `astock_predictions` table with accuracy tracking.
 5.  **Multi-Channel Push**: Supports Telegram and DingTalk notifications.
 
-### 4.7 One-Pass Framework / One-Pass 框架 (v1.9.0+)
+### 4.7 One-Pass Framework (v1.9.0+)
 
 A generic framework for unified AI analysis that consolidates multiple processing steps into a single LLM call:
 
@@ -339,7 +339,7 @@ All non-webhook endpoints require `X-API-Key` header authentication.
 | `/health` | GET | Health check |
 | `/dingtalk/callback` | POST | DingTalk webhook callback |
 
-## 5. Configuration / 配置说明
+## 5. Configuration
 
 All settings are managed via `.env`. Key parameters:
 
@@ -406,71 +406,71 @@ All settings are managed via `.env`. Key parameters:
 | `SUMMARY_MINUTE` | Summary cron minute | `0` |
 | `KG_EXTRACT_INTERVAL_MINUTES` | Knowledge Graph extraction interval | `15` |
 
-## 6. Frontend / 前端
+## 6. Frontend
 
-OmniDigest 前端是一个基于 Vue 3 + Vite 的单页应用，提供可视化仪表板。
+OmniDigest frontend is a Vue 3 + Vite single-page application providing a visual dashboard.
 
-### 6.1 技术栈
-- **Vue 3** - 渐进式前端框架
-- **Vite** - 现代构建工具
-- **Vue Router** - 客户端路由
-- **Axios** - HTTP 请求库
-- **Chart.js + vue-chartjs** - 数据可视化
+### 6.1 Tech Stack
+- **Vue 3** - Progressive frontend framework
+- **Vite** - Modern build tool
+- **Vue Router** - Client-side routing
+- **Axios** - HTTP client
+- **Chart.js + vue-chartjs** - Data visualization
 
-### 6.2 前端构建
+### 6.2 Frontend Build
 
 ```bash
-# 安装依赖
+# Install dependencies
 cd frontend
 npm install
 
-# 开发模式
+# Development mode
 npm run dev
 
-# 生产构建
+# Production build
 npm run build
 
-# 预览构建结果
+# Preview build
 npm run preview
 ```
 
-### 6.3 Docker 部署
+### 6.3 Docker Deployment
 
-使用 docker-compose 进行部署：
+Deploy using docker-compose:
 
 ```bash
 docker-compose up -d
 ```
 
-### 6.4 环境变量
+### 6.4 Environment Variables
 
-前端使用 Vite，环境变量以 `VITE_` 开头：
+Frontend uses Vite, environment variables must be prefixed with `VITE_`:
 
 | Variable | Description |
 |---|---|
-| `VITE_API_URL` | 生产环境 API 地址（通过 Nginx 代理时留空） |
+| `VITE_API_URL` | Production API URL (leave empty when using Nginx proxy) |
 
-### 6.5 PWA 支持
+### 6.5 PWA Support
 
-前端支持 PWA 安装：
-- Service Worker 缓存静态资源
-- 可添加到主屏幕
-- 支持离线访问
+Frontend supports PWA installation:
+- Service Worker caches static assets
+- Add to home screen
+- Offline access support
 
-### 6.6 Nginx 配置
+### 6.6 Nginx Configuration
 
-生产环境通过 Nginx 反向代理：
-- `/api` -> 后端 API (port 8080)
-- 静态文件 -> 前端构建产物
+Production environment uses Nginx reverse proxy:
+- `/api` -> Backend API (port 8080)
+- Static files -> Frontend build output
 
-## 7. Documentation / 详细文档
+## 7. Documentation
 
 - [Change Log](docs/change_log.md) — Version history and release notes
 - [Python Commenting Standard](docs/PYTHON_COMMENTING_STANDARD.md) — Bilingual docstring conventions
 
 ---
 
-## 8. License / 许可证
+## 8. License
 
 MIT License
 
@@ -496,7 +496,7 @@ SOFTWARE.
 
 ---
 
-## 9. Contributing / 贡献指南
+## 9. Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
