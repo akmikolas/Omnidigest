@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.5] - 2026-03-19
+
+### Added
+- **Redis Caching Layer**: 22 API endpoints now support Redis caching
+  - Token stats: 5min TTL
+  - Stats (overview/articles/breaking/twitter): 30s-180s TTL
+  - Knowledge Graph: 60s-120s TTL
+  - A-Stock (quotes/sectors/news/stocks): 3-10min TTL
+  - Response time reduced from ~5s to ~20ms (cache hit)
+
+- **A-Share Analysis Page**: New stock market analysis dashboard
+  - Real-time index quotes (Shanghai, Shenzhen)
+  - Sector performance ranking
+  - Financial news aggregation
+  - Market prediction (pre-market, intraday, post-market)
+  - Prediction accuracy tracking
+  - Alert status monitoring
+
+- **Alert Service**: Abnormal fluctuation detection for A-Stocks
+  - Monitors unusual price/volume changes
+  - Configurable thresholds
+  - Telegram/DingTalk push notifications
+
+- **CI/CD Workflows**: GitHub Actions automation
+  - `ci.yml`: Linting, type checking, testing
+  - `cd.yml`: Docker build and Harbor push
+
+- **API Documentation**: Complete REST API reference
+  - `docs/API.md`: 51 endpoints documented
+  - Request/response examples
+
+### Fixed
+- API path mismatch (frontend missing `/api` prefix)
+- Backend `.env` loading issue (ENV_FILE not passed)
+- Redis connection initialization timing
+
+### Changed
+- Backend port standardized to 7080 (dev environment)
+- All UI text unified to English
+- Vite proxy configuration updated
+
+---
+
 ## [2.3.4] - 2026-03-18
 
 ### Added
