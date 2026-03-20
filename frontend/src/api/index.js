@@ -6,6 +6,7 @@ const apiBaseURL = import.meta?.env?.VITE_API_URL || '/api'
 
 const api = axios.create({
   baseURL: apiBaseURL,
+  timeout: 10000, // 10 秒超时
   headers: {
     'Content-Type': 'application/json'
   }
@@ -35,6 +36,10 @@ api.interceptors.response.use(
       window.dispatchEvent(new CustomEvent('api-key-required', {
         detail: { message: 'Invalid API Key. Please enter your API key (format: client_name:key):' }
       }))
+    }
+    // Handle timeout
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      error.message = '请求超时，请检查后端服务是否正常运行'
     }
     return Promise.reject(error)
   }
