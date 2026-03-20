@@ -179,6 +179,10 @@ class NewsCrawler:
                         # 新增：立即触发解析
                         self.rag.trigger_parsing([doc_id])
                         self.db.update_status(article_id, 1, ragflow_id=doc_id)
+                    else:
+                        # Handle RAG upload failure - still mark as processed to avoid limbo
+                        # 处理 RAG 上传失败 - 仍标记为已处理，避免文章处于不确定状态
+                        self.db.update_status(article_id, 1, ragflow_id=None)
                 else:
                     logger.info(f"Skipping RAGFlow upload for '{title}' (disabled in config).")
                     self.db.update_status(article_id, 1, ragflow_id=None)
