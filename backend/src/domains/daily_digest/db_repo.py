@@ -176,8 +176,8 @@ class DailyNewsMixin:
             summary_raw (str, optional): A short LLM-generated summary. Defaults to None. / 简短的 LLM 生成总结。默认为 None。
         """
         query = """
-        UPDATE news_articles 
-        SET category = %s, score = %s, summary_raw = %s
+        UPDATE news_articles
+        SET category = %s, score = %s, summary_raw = %s, status = 1
         WHERE id = %s
         """
         try:

@@ -133,7 +133,7 @@ class TwitterProcessor:
 
                 # Don't push alert immediately for new event - wait for more sources
                 # Only push when source_count reaches threshold
-                if 1 >= threshold:
+                if threshold == 1:
                     event = await asyncio.to_thread(self.db.get_twitter_event_by_id, event_id)
                     sources = await asyncio.to_thread(self.db.get_twitter_event_tweet_sources, event_id)
                     if event:
@@ -201,7 +201,6 @@ class TwitterProcessor:
             if batch_result and hasattr(batch_result, 'results'):
                 return batch_result.results
             return []
-            return batch_result.results
         except Exception as e:
             logger.error(f"One-Pass batch triage failed for {len(tweets)} tweets: {e}")
             return []
@@ -279,7 +278,7 @@ class TwitterProcessor:
                 logger.info(f"🆕 [OnePass] Created new event {event_id} for tweet {stream['tweet_id']}")
 
                 # Push alert if threshold is 1
-                if 1 >= threshold:
+                if threshold == 1:
                     event = await asyncio.to_thread(self.db.get_twitter_event_by_id, event_id)
                     sources = await asyncio.to_thread(self.db.get_twitter_event_tweet_sources, event_id)
                     if event:

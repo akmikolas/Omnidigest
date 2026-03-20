@@ -269,11 +269,11 @@ class BreakingNewsMixin:
 
     def get_story_source_count(self, story_id: str) -> int:
         """
-        Counts distinct source platforms for all streams linked to events in this story.
-        统计此故事线下所有事件关联的流的独立信息源平台数量。
+        Counts distinct sources (by source_url) for all streams linked to events in this story.
+        统计此故事线下所有事件关联的流的独立信息源数量（按 source_url 计）。
         """
         query = """
-        SELECT COUNT(DISTINCT r.source_platform) as cnt
+        SELECT COUNT(DISTINCT r.source_url) as cnt
         FROM breaking_events e
         JOIN event_stream_mapping m ON m.event_id = e.id
         JOIN breaking_stream_raw r ON r.id = m.stream_id
