@@ -67,6 +67,17 @@ export const statsApi = {
       url += 'hours=24'
     }
     return api.get(url)
+  },
+  tokenStatsTimeline: (startDate = null, endDate = null, hours = null) => {
+    let url = '/token-stats/timeline?'
+    if (hours) {
+      url += `hours=${hours}`
+    } else if (startDate && endDate) {
+      url += `start_date=${startDate}&end_date=${endDate}`
+    } else {
+      url += 'hours=168'
+    }
+    return api.get(url)
   }
 }
 

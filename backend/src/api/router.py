@@ -302,6 +302,115 @@ async def get_token_stats_by_range(start_date: str = None, end_date: str = None,
     cache.set(cache_key, result, ttl=300)
     return result
 
+
+@cached_endpoint("token:stats:timeline", ttl=300)
+@router.get("/token-stats/timeline", dependencies=[Depends(verify_api_key)])
+async def get_token_stats_timeline(start_date: str = None, end_date: str = None, hours: int = None):
+    """
+    Endpoint for querying token usage timeline by service.
+    按服务查询 Token 使用时间线（用于趋势图）。
+
+    Args:
+        start_date (str): Start date in ISO format (YYYY-MM-DD)
+        end_date (str): End date in ISO format (YYYY-MM-DD)
+        hours (int): Alternative to dates - last N hours
+
+    Returns:
+        dict: Token usage timeline by date and service.
+    """
+    cache_key = f"omnidigest:token:stats:timeline:hours={hours}:start={start_date}:end={end_date}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    import asyncio
+    from datetime import datetime, timedelta
+    from .deps import get_db
+    from psycopg2.extras import RealDictCursor
+
+    db = get_db()
+
+    def get_timeline():
+        with db._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Determine time granularity based on range
+                if hours and hours <= 24:
+                    # For short ranges, group by hour
+                    time_group = "date_trunc('hour', created_at)"
+                elif hours and hours <= 168:  # 7 days
+                    # For medium ranges, group by day
+                    time_group = "date_trunc('day', created_at)"
+                else:
+                    # For long ranges, group by day
+                    time_group = "date_trunc('day', created_at)"
+
+                if hours:
+                    cur.execute(f"""
+                    SELECT
+                        {time_group} as time_bucket,
+                        service_name,
+                        SUM(prompt_tokens + completion_tokens) as total_tokens
+                    FROM token_usage
+                    WHERE created_at > NOW() - INTERVAL '%s hours'
+                    GROUP BY time_bucket, service_name
+                    ORDER BY time_bucket, service_name
+                """, (hours,))
+                elif start_date and end_date:
+                    cur.execute(f"""
+                    SELECT
+                        {time_group} as time_bucket,
+                        service_name,
+                        SUM(prompt_tokens + completion_tokens) as total_tokens
+                    FROM token_usage
+                    WHERE created_at >= %s AND created_at < %s
+                    GROUP BY time_bucket, service_name
+                    ORDER BY time_bucket, service_name
+                """, (start_date, end_date))
+                else:
+                    cur.execute("""
+                    SELECT
+                        date_trunc('day', created_at) as time_bucket,
+                        service_name,
+                        SUM(prompt_tokens + completion_tokens) as total_tokens
+                    FROM token_usage
+                    WHERE created_at > NOW() - INTERVAL '7 days'
+                    GROUP BY time_bucket, service_name
+                    ORDER BY time_bucket, service_name
+                """)
+                return cur.fetchall()
+
+    timeline = await asyncio.to_thread(get_timeline)
+
+    # Transform data for chart
+    services = set()
+    for row in timeline:
+        services.add(row['service_name'])
+
+    # Group by date
+    date_data = {}
+    for row in timeline:
+        date = row['time_bucket'].strftime('%Y-%m-%d') if hasattr(row['time_bucket'], 'strftime') else str(row['time_bucket'])
+        service = row['service_name']
+        tokens = float(row['total_tokens'] or 0)
+
+        if date not in date_data:
+            date_data[date] = {'date': date}
+        date_data[date][service] = tokens
+
+    # Sort by date and prepare datasets
+    sorted_dates = sorted(date_data.keys())
+
+    result = {
+        "status": "ok",
+        "dates": sorted_dates,
+        "services": list(services),
+        "data": [date_data[d] for d in sorted_dates]
+    }
+
+    cache.set(cache_key, result, ttl=300)
+    return result
+
+
 @router.post("/analyze/trends", dependencies=[Depends(verify_api_key)])
 async def analyze_trends(query: str, days: int = 30, analyzer = Depends(get_analyzer)):
     """

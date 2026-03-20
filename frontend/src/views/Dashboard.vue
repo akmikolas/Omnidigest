@@ -231,21 +231,32 @@ export default {
         twitterEvents.value = twitterData.stats?.recent_events || []
 
         // Process today's token cost
-        if (tokenData && tokenData.data) {
-          const data = tokenData.data
-          if (data.total_cost !== undefined) {
-            todayCost.value = data.total_cost || 0
+        if (tokenData && tokenData.stats) {
+          const stats = tokenData.stats
+          // Calculate total cost from stats
+          let totalCost = 0
+          let totalInput = 0
+          let totalOutput = 0
+          let totalCached = 0
+
+          for (const item of stats) {
+            const prompt = parseInt(item.total_prompt) || 0
+            const completion = parseInt(item.total_completion) || 0
+            const cached = parseInt(item.cached_tokens) || 0
+
+            totalInput += prompt
+            totalOutput += completion
+            totalCached += cached
+
+            // Estimate cost: ~$1 per 1M tokens (simplified)
+            const totalTokens = prompt + completion
+            totalCost += totalTokens / 1000000
           }
-          if (data.token_usage && data.token_usage.length > 0) {
-            const total = data.token_usage.reduce((acc, item) => ({
-              input: acc.input + (item.prompt_tokens || 0),
-              output: acc.output + (item.completion_tokens || 0),
-              cached: acc.cached + (item.cached_tokens || 0)
-            }), { input: 0, output: 0, cached: 0 })
-            todayInputTokens.value = total.input
-            todayOutputTokens.value = total.output
-            todayCachedTokens.value = total.cached
-          }
+
+          todayCost.value = totalCost
+          todayInputTokens.value = totalInput
+          todayOutputTokens.value = totalOutput
+          todayCachedTokens.value = totalCached
         }
       } catch (e) {
         console.error('Dashboard API error:', e)
