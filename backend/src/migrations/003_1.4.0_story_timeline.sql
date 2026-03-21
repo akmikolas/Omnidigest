@@ -18,13 +18,13 @@ CREATE TABLE IF NOT EXISTS breaking_stories (
     push_count INT DEFAULT 0,                    -- Total number of pushes for this story / 该故事线的总推送次数
     last_pushed_at TIMESTAMP,                    -- Last push timestamp / 上次推送时间
     last_pushed_score INT DEFAULT 0,             -- Score at the time of last push / 上次推送时的分数
-    created_at TIMESTAMP DEFAULT NOW(),
+    "created_at" TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_bs_status ON breaking_stories(status);
 CREATE INDEX IF NOT EXISTS idx_bs_score ON breaking_stories(peak_score);
-CREATE INDEX IF NOT EXISTS idx_bs_created ON breaking_stories(created_at);
+CREATE INDEX IF NOT EXISTS idx_bs_created ON breaking_stories("created_at");
 CREATE INDEX IF NOT EXISTS idx_bs_updated ON breaking_stories(updated_at);
 
 -- 2. Add story_id foreign key to breaking_events

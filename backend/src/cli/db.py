@@ -80,41 +80,41 @@ def migrate_db_v2(args):
         cur.execute("""
             DO $$
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                                WHERE table_name='news_articles' AND column_name='category') THEN
-                    ALTER TABLE news_articles ADD COLUMN category VARCHAR(100);
+                    ALTER TABLE omnidigest.news_articles ADD COLUMN category VARCHAR(100);
                 END IF;
             END
             $$;
         """)
-        
+
         logger.info("Adding 'score' column...")
         cur.execute("""
             DO $$
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                                WHERE table_name='news_articles' AND column_name='score') THEN
-                    ALTER TABLE news_articles ADD COLUMN score INT;
+                    ALTER TABLE omnidigest.news_articles ADD COLUMN score INT;
                 END IF;
             END
             $$;
         """)
-        
+
         logger.info("Adding 'summary_raw' column...")
         cur.execute("""
             DO $$
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                                WHERE table_name='news_articles' AND column_name='summary_raw') THEN
-                    ALTER TABLE news_articles ADD COLUMN summary_raw TEXT;
+                    ALTER TABLE omnidigest.news_articles ADD COLUMN summary_raw TEXT;
                 END IF;
             END
             $$;
         """)
 
         logger.info("Adding indexes...")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_news_category ON news_articles(category);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_news_score ON news_articles(score);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_news_category ON omnidigest.news_articles(category);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_news_score ON omnidigest.news_articles(score);")
 
         conn.commit()
         logger.info("Migration v2 completed successfully.")
@@ -173,13 +173,13 @@ def migrate_db_v4_rss_failures(args):
         cur.execute("""
             DO $$
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                                WHERE table_name='rss_sources' AND column_name='fail_count') THEN
-                    ALTER TABLE rss_sources ADD COLUMN fail_count INT DEFAULT 0;
+                    ALTER TABLE omnidigest.rss_sources ADD COLUMN fail_count INT DEFAULT 0;
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                                WHERE table_name='rss_sources' AND column_name='last_error') THEN
-                    ALTER TABLE rss_sources ADD COLUMN last_error TEXT;
+                    ALTER TABLE omnidigest.rss_sources ADD COLUMN last_error TEXT;
                 END IF;
             END
             $$;
@@ -221,17 +221,17 @@ def migrate_db_v5_token(args):
         
         logger.info("Creating token_usage table if not exists...")
         cur.execute("""
-        CREATE TABLE IF NOT EXISTS token_usage (
+        CREATE TABLE IF NOT EXISTS omnidigest.token_usage (
             id UUID PRIMARY KEY,
             service_name VARCHAR(100) NOT NULL,
             model_name VARCHAR(100) NOT NULL,
             prompt_tokens INT DEFAULT 0,
             completion_tokens INT DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW()
+            "created_at" TIMESTAMP DEFAULT NOW()
         );
-        CREATE INDEX IF NOT EXISTS idx_tu_service ON token_usage(service_name);
-        CREATE INDEX IF NOT EXISTS idx_tu_model ON token_usage(model_name);
-        CREATE INDEX IF NOT EXISTS idx_tu_date ON token_usage(created_at);
+        CREATE INDEX IF NOT EXISTS idx_tu_service ON omnidigest.token_usage(service_name);
+        CREATE INDEX IF NOT EXISTS idx_tu_model ON omnidigest.token_usage(model_name);
+        CREATE INDEX IF NOT EXISTS idx_tu_date ON omnidigest.token_usage("created_at");
         """)
         conn.commit()
         logger.info("Migration v5 completed successfully.")
@@ -267,7 +267,7 @@ def migrate_db_v7_twitter(args):
         
         logger.info("Creating Twitter tables...")
         cur.execute("""
-        CREATE TABLE IF NOT EXISTS twitter_accounts (
+        CREATE TABLE IF NOT EXISTS omnidigest.twitter_accounts (
             id UUID PRIMARY KEY,
             username VARCHAR(100) UNIQUE NOT NULL,
             auth_token TEXT NOT NULL,
@@ -276,21 +276,25 @@ def migrate_db_v7_twitter(args):
             last_error TEXT,
             last_used_at TIMESTAMP,
             fail_count INT DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW()
+            "created_at" TIMESTAMP DEFAULT NOW(),
+            account_label VARCHAR(50),
+            last_active_at TIMESTAMP,
+            proxy_url TEXT,
+            cooled_until TIMESTAMP
         );
-        CREATE INDEX IF NOT EXISTS idx_twitter_accounts_status ON twitter_accounts(status);
+        CREATE INDEX IF NOT EXISTS idx_twitter_accounts_status ON omnidigest.twitter_accounts(status);
 
-        CREATE TABLE IF NOT EXISTS twitter_monitored_users (
+        CREATE TABLE IF NOT EXISTS omnidigest.twitter_monitored_users (
             rest_id VARCHAR(50) PRIMARY KEY,
             screen_name VARCHAR(100) UNIQUE NOT NULL,
             is_active BOOLEAN DEFAULT TRUE,
             category VARCHAR(50),
             last_seen_tweet_id VARCHAR(50) DEFAULT '0',
-            created_at TIMESTAMP DEFAULT NOW()
+            "created_at" TIMESTAMP DEFAULT NOW()
         );
-        CREATE INDEX IF NOT EXISTS idx_twitter_monitored_active ON twitter_monitored_users(is_active);
+        CREATE INDEX IF NOT EXISTS idx_twitter_monitored_active ON omnidigest.twitter_monitored_users(is_active);
 
-        CREATE TABLE IF NOT EXISTS twitter_stream_raw (
+        CREATE TABLE IF NOT EXISTS omnidigest.twitter_stream_raw (
             id UUID PRIMARY KEY,
             tweet_id VARCHAR(50) UNIQUE NOT NULL,
             author_screen_name VARCHAR(100),
@@ -299,9 +303,9 @@ def migrate_db_v7_twitter(args):
             reply_to_tweet_id VARCHAR(50),
             metadata JSONB,
             status SMALLINT DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW()
+            "created_at" TIMESTAMP DEFAULT NOW()
         );
-        CREATE INDEX IF NOT EXISTS idx_twitter_stream_id ON twitter_stream_raw(tweet_id);
+        CREATE INDEX IF NOT EXISTS idx_twitter_stream_id ON omnidigest.twitter_stream_raw(tweet_id);
         """)
         conn.commit()
         logger.info("Migration v7 completed successfully.")

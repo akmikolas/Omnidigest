@@ -30,10 +30,10 @@ class AuthMixin:
             int | None: The ID of the API key record, or None on error. / API 密钥记录的 ID，出错时返回 None。
         """
         query = """
-        INSERT INTO api_keys (client_name, key_hash, is_active)
+        INSERT INTO omnidigest.api_keys (client_name, key_hash, is_active)
         VALUES (%s, %s, TRUE)
-        ON CONFLICT (client_name) DO UPDATE 
-        SET key_hash = EXCLUDED.key_hash, is_active = TRUE, created_at = NOW()
+        ON CONFLICT (client_name) DO UPDATE
+        SET key_hash = EXCLUDED.key_hash, is_active = TRUE, "created_at" = NOW()
         RETURNING id;
         """
         try:
@@ -58,7 +58,7 @@ class AuthMixin:
         Returns:
             str | None: The hashed API key if found and active, otherwise None. / 如果找到且处于活动状态，则返回散列的 API 密钥，否则返回 None。
         """
-        query = "SELECT key_hash FROM api_keys WHERE client_name = %s AND is_active = TRUE"
+        query = "SELECT key_hash FROM omnidigest.api_keys WHERE client_name = %s AND is_active = TRUE"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -77,7 +77,7 @@ class AuthMixin:
         Returns:
             list[dict]: A list of dictionary records containing id, client_name, is_active, and created_at. / 包含 id、client_name、is_active 和 created_at 的字典记录列表。
         """
-        query = "SELECT id, client_name, is_active, created_at FROM api_keys ORDER BY created_at DESC"
+        query = 'SELECT id, client_name, is_active, "created_at" FROM omnidigest.api_keys ORDER BY "created_at" DESC'
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -98,7 +98,7 @@ class AuthMixin:
         Returns:
             bool: True if successful, False otherwise. / 如果成功则返回 True，否则返回 False。
         """
-        query = "UPDATE api_keys SET is_active = FALSE WHERE client_name = %s RETURNING id"
+        query = "UPDATE omnidigest.api_keys SET is_active = FALSE WHERE client_name = %s RETURNING id"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:

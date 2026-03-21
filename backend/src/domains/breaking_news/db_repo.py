@@ -28,7 +28,7 @@ class BreakingNewsMixin:
         将原始的传入流数据插入到数据库中。
         """
         query = """
-        INSERT INTO breaking_stream_raw (id, source_platform, source_url, raw_text, author, publish_time)
+        INSERT INTO omnidigest.breaking_stream_raw (id, source_platform, source_url, raw_text, author, publish_time)
         VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (source_url) DO NOTHING
         RETURNING id;
@@ -52,9 +52,9 @@ class BreakingNewsMixin:
         """
         query = """
         SELECT id, source_platform, source_url, raw_text, author, publish_time
-        FROM breaking_stream_raw
+        FROM omnidigest.breaking_stream_raw
         WHERE status = 0
-        ORDER BY created_at DESC
+        ORDER BY "created_at" DESC
         LIMIT %s
         """
         try:
@@ -71,7 +71,7 @@ class BreakingNewsMixin:
         Updates the status of a raw stream item (e.g., 1=processed, 2=ignored).
         更新原始流项目的状态（例如，1=已处理，2=已忽略）。
         """
-        query = "UPDATE breaking_stream_raw SET status = %s WHERE id = %s"
+        query = "UPDATE omnidigest.breaking_stream_raw SET status = %s WHERE id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -86,7 +86,7 @@ class BreakingNewsMixin:
         创建一个最终版的突发事件。
         """
         query = """
-        INSERT INTO breaking_events (id, event_title, summary, category, impact_score, ragflow_id)
+        INSERT INTO omnidigest.breaking_events (id, event_title, summary, category, impact_score, ragflow_id)
         VALUES (%s, %s, %s, %s, %s, %s)
         RETURNING id;
         """
@@ -108,8 +108,8 @@ class BreakingNewsMixin:
         更新现有突发事件的详情。
         """
         query = """
-        UPDATE breaking_events 
-        SET event_title = %s, summary = %s, impact_score = %s, ragflow_id = COALESCE(%s, ragflow_id), updated_at = NOW()
+        UPDATE omnidigest.breaking_events
+        SET event_title = %s, summary = %s, impact_score = %s, ragflow_id = COALESCE(%s, ragflow_id), "updated_at" = NOW()
         WHERE id = %s
         """
         try:
@@ -126,10 +126,10 @@ class BreakingNewsMixin:
         检索最近创建或更新的突发事件。
         """
         query = """
-        SELECT id, event_title, summary, category, impact_score, ragflow_id, updated_at, pushed
-        FROM breaking_events
-        WHERE updated_at > NOW() - (%s || ' hours')::INTERVAL
-        ORDER BY updated_at DESC
+        SELECT id, event_title, summary, category, impact_score, ragflow_id, "updated_at", pushed
+        FROM omnidigest.breaking_events
+        WHERE "updated_at" > NOW() - (%s || ' hours')::INTERVAL
+        ORDER BY "updated_at" DESC
         """
         try:
             with self._get_connection() as conn:
@@ -145,7 +145,7 @@ class BreakingNewsMixin:
         Marks a breaking event as successfully pushed to notifications.
         将突发事件标记为已成功推送至通知系统。
         """
-        query = "UPDATE breaking_events SET pushed = TRUE WHERE id = %s"
+        query = "UPDATE omnidigest.breaking_events SET pushed = TRUE WHERE id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -161,8 +161,8 @@ class BreakingNewsMixin:
         """
         query = """
         SELECT DISTINCT r.source_platform AS platform, r.source_url AS url
-        FROM event_stream_mapping m
-        JOIN breaking_stream_raw r ON m.stream_id = r.id
+        FROM omnidigest.event_stream_mapping m
+        JOIN omnidigest.breaking_stream_raw r ON m.stream_id = r.id
         WHERE m.event_id = %s
         """
         try:
@@ -180,9 +180,9 @@ class BreakingNewsMixin:
         将原始流条目映射到合并的事件。
         """
         # First check if event exists
-        check_query = "SELECT 1 FROM breaking_events WHERE id = %s"
+        check_query = "SELECT 1 FROM omnidigest.breaking_events WHERE id = %s"
         insert_query = """
-        INSERT INTO event_stream_mapping (id, event_id, stream_id)
+        INSERT INTO omnidigest.event_stream_mapping (id, event_id, stream_id)
         VALUES (%s, %s, %s)
         ON CONFLICT DO NOTHING;
         """
@@ -211,7 +211,7 @@ class BreakingNewsMixin:
         创建一个新的故事线（叙事弧线），用于将相关事件分组。
         """
         query = """
-        INSERT INTO breaking_stories (id, story_title, story_summary, category, peak_score, source_count)
+        INSERT INTO omnidigest.breaking_stories (id, story_title, story_summary, category, peak_score, source_count)
         VALUES (%s, %s, %s, %s, %s, 1)
         RETURNING id;
         """
@@ -233,9 +233,9 @@ class BreakingNewsMixin:
         更新现有故事线的详情（标题、摘要、分数、信息源数量）。
         """
         query = """
-        UPDATE breaking_stories
+        UPDATE omnidigest.breaking_stories
         SET story_title = %s, story_summary = %s, peak_score = GREATEST(peak_score, %s),
-            source_count = %s, updated_at = NOW()
+            source_count = %s, "updated_at" = NOW()
         WHERE id = %s
         """
         try:
@@ -253,10 +253,10 @@ class BreakingNewsMixin:
         """
         query = """
         SELECT id, story_title, story_summary, category, peak_score, source_count, status, pushed,
-               push_count, last_pushed_at, last_pushed_score, created_at, updated_at
-        FROM breaking_stories
-        WHERE status != 'resolved' AND updated_at > NOW() - (%s || ' hours')::INTERVAL
-        ORDER BY updated_at DESC
+               push_count, last_pushed_at, last_pushed_score, "created_at", "updated_at"
+        FROM omnidigest.breaking_stories
+        WHERE status != 'resolved' AND "updated_at" > NOW() - (%s || ' hours')::INTERVAL
+        ORDER BY "updated_at" DESC
         """
         try:
             with self._get_connection() as conn:
@@ -274,9 +274,9 @@ class BreakingNewsMixin:
         """
         query = """
         SELECT COUNT(DISTINCT r.source_url) as cnt
-        FROM breaking_events e
-        JOIN event_stream_mapping m ON m.event_id = e.id
-        JOIN breaking_stream_raw r ON r.id = m.stream_id
+        FROM omnidigest.breaking_events e
+        JOIN omnidigest.event_stream_mapping m ON m.event_id = e.id
+        JOIN omnidigest.breaking_stream_raw r ON r.id = m.stream_id
         WHERE e.story_id = %s
         """
         try:
@@ -294,7 +294,7 @@ class BreakingNewsMixin:
         Links an event to a story by setting its story_id FK.
         通过设置 story_id 外键将事件关联到故事线。
         """
-        query = "UPDATE breaking_events SET story_id = %s WHERE id = %s"
+        query = "UPDATE omnidigest.breaking_events SET story_id = %s WHERE id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -309,7 +309,7 @@ class BreakingNewsMixin:
         将故事线标记为已推送并记录推送元数据。
         """
         query = """
-        UPDATE breaking_stories
+        UPDATE omnidigest.breaking_stories
         SET pushed = TRUE, push_count = push_count + 1,
             last_pushed_at = NOW(), last_pushed_score = %s, status = 'verified'
         WHERE id = %s
@@ -329,9 +329,9 @@ class BreakingNewsMixin:
         """
         status = 'verified' if source_count >= 2 else 'developing'
         query = """
-        UPDATE breaking_stories
+        UPDATE omnidigest.breaking_stories
         SET source_count = %s, status = CASE WHEN status = 'resolved' THEN 'resolved' ELSE %s END,
-            updated_at = NOW()
+            "updated_at" = NOW()
         WHERE id = %s
         """
         try:
@@ -351,15 +351,15 @@ class BreakingNewsMixin:
         """
         query = """
         SELECT DISTINCT ON (s.id) s.id, s.story_title, s.story_summary, s.category, s.peak_score, s.source_count,
-               s.status, s.pushed, s.push_count, s.last_pushed_at, s.last_pushed_score, s.created_at, s.updated_at,
+               s.status, s.pushed, s.push_count, s.last_pushed_at, s.last_pushed_score, s."created_at", s."updated_at",
                r.source_url
-        FROM breaking_stories s
-        LEFT JOIN breaking_events e ON s.id = e.story_id
-        LEFT JOIN event_stream_mapping m ON e.id = m.event_id
-        LEFT JOIN breaking_stream_raw r ON m.stream_id = r.id
+        FROM omnidigest.breaking_stories s
+        LEFT JOIN omnidigest.breaking_events e ON s.id = e.story_id
+        LEFT JOIN omnidigest.event_stream_mapping m ON e.id = m.event_id
+        LEFT JOIN omnidigest.breaking_stream_raw r ON m.stream_id = r.id
         WHERE s.status = 'verified' AND s.peak_score >= %s
-          AND (s.pushed = FALSE OR (s.peak_score - s.last_pushed_score >= 10 AND s.updated_at > s.last_pushed_at))
-        ORDER BY s.id, r.created_at DESC
+          AND (s.pushed = FALSE OR (s.peak_score - s.last_pushed_score >= 10 AND s."updated_at" > s.last_pushed_at))
+        ORDER BY s.id, r."created_at" DESC
         """
         try:
             with self._get_connection() as conn:
@@ -380,13 +380,13 @@ class BreakingNewsMixin:
         获取属于某个故事线的所有事件，按创建时间排序。包含每个事件的信息源 URL。
         """
         query = """
-        SELECT DISTINCT ON (e.id) e.id, e.event_title, e.summary, e.category, e.impact_score, e.created_at, e.updated_at,
+        SELECT DISTINCT ON (e.id) e.id, e.event_title, e.summary, e.category, e.impact_score, e."created_at", e."updated_at",
                r.source_url
-        FROM breaking_events e
-        LEFT JOIN event_stream_mapping m ON e.id = m.event_id
-        LEFT JOIN breaking_stream_raw r ON m.stream_id = r.id
+        FROM omnidigest.breaking_events e
+        LEFT JOIN omnidigest.event_stream_mapping m ON e.id = m.event_id
+        LEFT JOIN omnidigest.breaking_stream_raw r ON m.stream_id = r.id
         WHERE e.story_id = %s
-        ORDER BY e.id, r.created_at ASC
+        ORDER BY e.id, r."created_at" ASC
         """
         try:
             with self._get_connection() as conn:
@@ -407,9 +407,9 @@ class BreakingNewsMixin:
         """
         query = """
         SELECT id, event_title, summary, category, impact_score
-        FROM breaking_events
-        WHERE story_id IS NULL AND created_at > NOW() - (INTERVAL '1 hour' * %s)
-        ORDER BY created_at ASC
+        FROM omnidigest.breaking_events
+        WHERE story_id IS NULL AND "created_at" > NOW() - (INTERVAL '1 hour' * %s)
+        ORDER BY "created_at" ASC
         """
         try:
             with self._get_connection() as conn:

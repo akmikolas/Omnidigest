@@ -18,7 +18,7 @@ class RssSourcesMixin:
         Retrieves all enabled RSS sources from the database.
         从数据库中检索所有已启用 RSS 源。
         """
-        query = "SELECT url, name FROM rss_sources WHERE enabled = TRUE"
+        query = "SELECT url, name FROM omnidigest.rss_sources WHERE enabled = TRUE"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -34,7 +34,7 @@ class RssSourcesMixin:
         如果尚不存在，将新的 RSS 源添加到数据库。
         """
         query = """
-        INSERT INTO rss_sources (id, url, name)
+        INSERT INTO omnidigest.rss_sources (id, url, name)
         VALUES (%s, %s, %s)
         ON CONFLICT (url) DO NOTHING
         RETURNING id;
@@ -56,7 +56,7 @@ class RssSourcesMixin:
         增加给定 RSS 源的 fail_count 并记录错误。返回新的 fail_count。
         """
         query = """
-        UPDATE rss_sources 
+        UPDATE omnidigest.rss_sources
         SET fail_count = COALESCE(fail_count, 0) + 1, last_error = %s
         WHERE url = %s
         RETURNING fail_count
@@ -77,7 +77,7 @@ class RssSourcesMixin:
         Resets the fail_count to 0 and clears the last_error.
         将 fail_count 重置为 0 并清除 last_error。
         """
-        query = "UPDATE rss_sources SET fail_count = 0, last_error = NULL WHERE url = %s"
+        query = "UPDATE omnidigest.rss_sources SET fail_count = 0, last_error = NULL WHERE url = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -91,7 +91,7 @@ class RssSourcesMixin:
         Disables an RSS source.
         禁用 RSS 源。
         """
-        query = "UPDATE rss_sources SET enabled = FALSE WHERE url = %s"
+        query = "UPDATE omnidigest.rss_sources SET enabled = FALSE WHERE url = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -106,7 +106,7 @@ class RssSourcesMixin:
         Retrieves all disabled RSS sources along with their fail_count and last_error.
         检索所有禁用的 RSS 源以及它们的 fail_count 和 last_error。
         """
-        query = "SELECT url, name, fail_count, last_error FROM rss_sources WHERE enabled = FALSE ORDER BY fail_count DESC"
+        query = "SELECT url, name, fail_count, last_error FROM omnidigest.rss_sources WHERE enabled = FALSE ORDER BY fail_count DESC"
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -121,7 +121,7 @@ class RssSourcesMixin:
         Manually re-enables an RSS source and resets its fail counters.
         手动重新启用 RSS 源并重置其故障计数器。
         """
-        query = "UPDATE rss_sources SET enabled = TRUE, fail_count = 0, last_error = NULL WHERE url = %s"
+        query = "UPDATE omnidigest.rss_sources SET enabled = TRUE, fail_count = 0, last_error = NULL WHERE url = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -142,7 +142,7 @@ class FastRssSourcesMixin:
         Retrieves all enabled breaking RSS sources from the database.
         从数据库中检索所有已启用突发新闻 RSS 源。
         """
-        query = "SELECT url, platform FROM breaking_rss_sources WHERE enabled = TRUE"
+        query = "SELECT url, platform FROM omnidigest.breaking_rss_sources WHERE enabled = TRUE"
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -158,7 +158,7 @@ class FastRssSourcesMixin:
         如果尚不存在，将新的突发新闻 RSS 源添加到数据库。
         """
         query = """
-        INSERT INTO breaking_rss_sources (id, url, name, platform)
+        INSERT INTO omnidigest.breaking_rss_sources (id, url, name, platform)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (url) DO NOTHING
         RETURNING id;
@@ -180,7 +180,7 @@ class FastRssSourcesMixin:
         增加突发新闻 RSS 源的 fail_count。如果超过 5 次，则自动禁用它。
         """
         query = """
-        UPDATE breaking_rss_sources 
+        UPDATE omnidigest.breaking_rss_sources
         SET fail_count = COALESCE(fail_count, 0) + 1, last_error = %s
         WHERE url = %s
         RETURNING fail_count
@@ -193,7 +193,7 @@ class FastRssSourcesMixin:
                     fail_count = result[0] if (result and result[0] is not None) else 0
                     
                     if fail_count >= 5:
-                        cur.execute("UPDATE breaking_rss_sources SET enabled = FALSE WHERE url = %s", (url,))
+                        cur.execute("UPDATE omnidigest.breaking_rss_sources SET enabled = FALSE WHERE url = %s", (url,))
                         logger.warning(f"Breaking RSS source {url} disabled due to continuous errors.")
                     
                 conn.commit()
@@ -208,7 +208,7 @@ class FastRssSourcesMixin:
         增加突发新闻 RSS 源的 success_count 并将 fail_count 重置为 0。
         """
         query = """
-        UPDATE breaking_rss_sources 
+        UPDATE omnidigest.breaking_rss_sources
         SET success_count = COALESCE(success_count, 0) + 1, fail_count = 0, last_error = NULL
         WHERE url = %s
         """
@@ -225,7 +225,7 @@ class FastRssSourcesMixin:
         Disables a breaking RSS source.
         禁用突发新闻 RSS 源。
         """
-        query = "UPDATE breaking_rss_sources SET enabled = FALSE WHERE url = %s"
+        query = "UPDATE omnidigest.breaking_rss_sources SET enabled = FALSE WHERE url = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:

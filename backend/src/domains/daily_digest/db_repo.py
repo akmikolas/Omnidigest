@@ -28,7 +28,7 @@ class DailyNewsMixin:
         Returns:
             bool: True if it exists, False otherwise. / 如果存在则返回 True，否则返回 False。
         """
-        query = "SELECT 1 FROM news_articles WHERE source_url = %s"
+        query = "SELECT 1 FROM omnidigest.news_articles WHERE source_url = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -56,7 +56,7 @@ class DailyNewsMixin:
             str | None: The new article's UUID if inserted, or None if skipped (on conflict) or error. / 如果插入则返回新文章的 UUID，如果跳过（发生冲突）或出错则返回 None。
         """
         query = """
-        INSERT INTO news_articles (id, title, content, source_url, source_name, publish_time)
+        INSERT INTO omnidigest.news_articles (id, title, content, source_url, source_name, publish_time)
         VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (source_url) DO NOTHING
         RETURNING id;
@@ -86,10 +86,10 @@ class DailyNewsMixin:
             ragflow_id (str, optional): The corresponding document ID in RAGFlow. Defaults to None. / RAGFlow 中相应的文档 ID。默认为 None。
         """
         if ragflow_id:
-            query = "UPDATE news_articles SET status = %s, ragflow_id = %s WHERE id = %s"
+            query = "UPDATE omnidigest.news_articles SET status = %s, ragflow_id = %s WHERE id = %s"
             params = (status, ragflow_id, article_id)
         else:
-            query = "UPDATE news_articles SET status = %s WHERE id = %s"
+            query = "UPDATE omnidigest.news_articles SET status = %s WHERE id = %s"
             params = (status, article_id)
         
         try:
@@ -113,7 +113,7 @@ class DailyNewsMixin:
         """
         # Try finding a title that starts with the filename title (handling potential truncation)
         # 尝试查找以文件名标题开头的标题（处理潜在的截断）
-        query = "SELECT source_url FROM news_articles WHERE title LIKE %s LIMIT 1"
+        query = "SELECT source_url FROM omnidigest.news_articles WHERE title LIKE %s LIMIT 1"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -147,10 +147,10 @@ class DailyNewsMixin:
             list[dict]: A list of article dictionaries containing id, title, content, etc. / 包含 id、title、content 等的文章字典列表。
         """
         query = """
-        SELECT id, title, content, source_url, source_name, publish_time 
-        FROM news_articles 
-        WHERE category IS NULL 
-        ORDER BY publish_time DESC 
+        SELECT id, title, content, source_url, source_name, publish_time
+        FROM omnidigest.news_articles
+        WHERE category IS NULL
+        ORDER BY publish_time DESC
         LIMIT %s
         """
         try:
@@ -176,7 +176,7 @@ class DailyNewsMixin:
             summary_raw (str, optional): A short LLM-generated summary. Defaults to None. / 简短的 LLM 生成总结。默认为 None。
         """
         query = """
-        UPDATE news_articles
+        UPDATE omnidigest.news_articles
         SET category = %s, score = %s, summary_raw = %s, status = 1
         WHERE id = %s
         """
@@ -204,7 +204,7 @@ class DailyNewsMixin:
         # 注意：此处使用字符串拼接，但是由代码内部控制的整数转换，是安全的
         query = """
         SELECT id, title, content, source_url, source_name, publish_time, category, score, summary_raw
-        FROM news_articles 
+        FROM omnidigest.news_articles
         WHERE publish_time > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - (%s || ' hours')::INTERVAL
           AND score >= %s
         ORDER BY category, score DESC
@@ -230,8 +230,8 @@ class DailyNewsMixin:
             list[dict]: A list of low-scoring article dictionaries containing at least id, title, and ragflow_id. / 低分文章字典列表，至少包含 id、title 和 ragflow_id。
         """
         query = """
-        SELECT id, title, ragflow_id 
-        FROM news_articles 
+        SELECT id, title, ragflow_id
+        FROM omnidigest.news_articles
         WHERE score < %s AND score IS NOT NULL
         """
         try:
@@ -251,7 +251,7 @@ class DailyNewsMixin:
         Args:
             article_id (str): The UUID of the article to delete. / 要删除的文章的 UUID。
         """
-        query = "DELETE FROM news_articles WHERE id = %s"
+        query = "DELETE FROM omnidigest.news_articles WHERE id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -274,10 +274,10 @@ class DailyNewsMixin:
             list[dict]: A list of article dictionaries containing id, title, content, source_url, publish_time. / 包含 id、title、content、source_url、publish_time 的文章字典列表。
         """
         query = """
-        SELECT id, title, content, source_url, publish_time 
-        FROM news_articles 
-        WHERE ragflow_id IS NULL 
-        ORDER BY publish_time DESC 
+        SELECT id, title, content, source_url, publish_time
+        FROM omnidigest.news_articles
+        WHERE ragflow_id IS NULL
+        ORDER BY publish_time DESC
         LIMIT %s
         """
         try:
@@ -304,7 +304,7 @@ class DailyNewsMixin:
         # 注意：此处使用字符串拼接，但是由代码内部控制的整数转换，是安全的
         query = """
         SELECT id, title, summary_raw, score, source_url, publish_time, category
-        FROM news_articles 
+        FROM omnidigest.news_articles
         WHERE publish_time > NOW() - (%s || ' days')::INTERVAL
         ORDER BY score DESC, publish_time DESC
         """

@@ -251,8 +251,8 @@ async def get_token_stats_by_range(start_date: str = None, end_date: str = None,
                             SUM(prompt_tokens) as total_prompt,
                             SUM(completion_tokens) as total_completion,
                             SUM(cached_tokens) as cached_tokens
-                        FROM token_usage
-                        WHERE created_at > NOW() - ('%s hours')::interval
+                        FROM omnidigest.token_usage
+                        WHERE "created_at" > NOW() - ('%s hours')::interval
                         GROUP BY service_name, model_name
                         ORDER BY service_name, model_name
                     """, (hours,))
@@ -266,8 +266,8 @@ async def get_token_stats_by_range(start_date: str = None, end_date: str = None,
                             SUM(prompt_tokens) as total_prompt,
                             SUM(completion_tokens) as total_completion,
                             SUM(cached_tokens) as cached_tokens
-                        FROM token_usage
-                        WHERE created_at >= %s AND created_at < %s
+                        FROM omnidigest.token_usage
+                        WHERE "created_at" >= %s AND "created_at" < %s
                         GROUP BY service_name, model_name
                         ORDER BY service_name, model_name
                     """, (start_date, end_date))
@@ -281,8 +281,8 @@ async def get_token_stats_by_range(start_date: str = None, end_date: str = None,
                             SUM(prompt_tokens) as total_prompt,
                             SUM(completion_tokens) as total_completion,
                             SUM(cached_tokens) as cached_tokens
-                        FROM token_usage
-                        WHERE created_at > NOW() - INTERVAL '24 hours'
+                        FROM omnidigest.token_usage
+                        WHERE "created_at" > NOW() - INTERVAL '24 hours'
                         GROUP BY service_name, model_name
                         ORDER BY service_name, model_name
                     """)
@@ -336,13 +336,13 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
                 # Determine time granularity based on range
                 if hours and hours <= 24:
                     # For short ranges, group by hour
-                    time_group = "date_trunc('hour', created_at)"
+                    time_group = "date_trunc('hour', \"created_at\")"
                 elif hours and hours <= 168:  # 7 days
                     # For medium ranges, group by day
-                    time_group = "date_trunc('day', created_at)"
+                    time_group = "date_trunc('day', \"created_at\")"
                 else:
                     # For long ranges, group by day
-                    time_group = "date_trunc('day', created_at)"
+                    time_group = "date_trunc('day', \"created_at\")"
 
                 if hours:
                     cur.execute(f"""
@@ -350,8 +350,8 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
                         {time_group} as time_bucket,
                         service_name,
                         SUM(prompt_tokens + completion_tokens) as total_tokens
-                    FROM token_usage
-                    WHERE created_at > NOW() - ('%s hours')::interval
+                    FROM omnidigest.token_usage
+                    WHERE "created_at" > NOW() - ('%s hours')::interval
                     GROUP BY time_bucket, service_name
                     ORDER BY time_bucket, service_name
                 """, (hours,))
@@ -361,19 +361,19 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
                         {time_group} as time_bucket,
                         service_name,
                         SUM(prompt_tokens + completion_tokens) as total_tokens
-                    FROM token_usage
-                    WHERE created_at >= %s AND created_at < %s
+                    FROM omnidigest.token_usage
+                    WHERE "created_at" >= %s AND "created_at" < %s
                     GROUP BY time_bucket, service_name
                     ORDER BY time_bucket, service_name
                 """, (start_date, end_date))
                 else:
                     cur.execute("""
                     SELECT
-                        date_trunc('day', created_at) as time_bucket,
+                        date_trunc('day', "created_at") as time_bucket,
                         service_name,
                         SUM(prompt_tokens + completion_tokens) as total_tokens
-                    FROM token_usage
-                    WHERE created_at > NOW() - INTERVAL '7 days'
+                    FROM omnidigest.token_usage
+                    WHERE "created_at" > NOW() - INTERVAL '7 days'
                     GROUP BY time_bucket, service_name
                     ORDER BY time_bucket, service_name
                 """)
@@ -518,7 +518,7 @@ async def get_stats_overview():
                         COUNT(*) FILTER (WHERE status = 0) as unclassified,
                         COUNT(*) FILTER (WHERE score >= 60) as high_score,
                         COUNT(*) FILTER (WHERE publish_time > NOW() - INTERVAL '24 hours') as last_24h
-                    FROM news_articles
+                    FROM omnidigest.news_articles
                 """)
                 return cur.fetchone()
 
@@ -534,9 +534,9 @@ async def get_stats_overview():
                     SELECT
                         COUNT(*) as total_events,
                         COUNT(*) FILTER (WHERE pushed = true) as pushed,
-                        (SELECT COUNT(*) FROM breaking_stories WHERE status = 'developing') as active_stories
-                    FROM breaking_events
-                    WHERE created_at > NOW() - INTERVAL '7 days'
+                        (SELECT COUNT(*) FROM omnidigest.breaking_stories WHERE status = 'developing') as active_stories
+                    FROM omnidigest.breaking_events
+                    WHERE "created_at" > NOW() - INTERVAL '7 days'
                 """)
                 return cur.fetchone()
 
@@ -551,10 +551,8 @@ async def get_stats_overview():
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_tweets,
-                        COUNT(*) FILTER (WHERE status = 1) as processed,
-                        COUNT(*) FILTER (WHERE impact_score >= 80) as high_impact,
-                        (SELECT COUNT(*) FROM twitter_events WHERE created_at > NOW() - INTERVAL '24 hours') as events_24h
-                    FROM twitter_stream_raw
+                        COUNT(*) FILTER (WHERE status = 1) as processed
+                    FROM omnidigest.twitter_stream_raw
                 """)
                 return cur.fetchone()
 
@@ -571,7 +569,7 @@ async def get_stats_overview():
                         COUNT(*) as total,
                         COUNT(*) FILTER (WHERE enabled = true) as enabled,
                         COUNT(*) FILTER (WHERE enabled = false) as disabled
-                    FROM rss_sources
+                    FROM omnidigest.rss_sources
                 """)
                 return cur.fetchone()
 
@@ -588,7 +586,7 @@ async def get_stats_overview():
                         COUNT(*) as total,
                         COUNT(*) FILTER (WHERE is_active = true) as active,
                         SUM(fail_count) as total_failures
-                    FROM llm_models
+                    FROM omnidigest.llm_models
                 """)
                 return cur.fetchone()
 
@@ -606,7 +604,7 @@ async def get_stats_overview():
                         COUNT(*) FILTER (WHERE status = 'active') as active,
                         COUNT(*) FILTER (WHERE status = 'cooling') as cooling,
                         COUNT(*) FILTER (WHERE status = 'error') as error
-                    FROM twitter_accounts
+                    FROM omnidigest.twitter_accounts
                 """)
                 return cur.fetchone()
 
@@ -662,8 +660,8 @@ async def get_article_stats(days: int = 7):
                 # Category distribution
                 cur.execute("""
                     SELECT category, COUNT(*) as count
-                    FROM news_articles
-                    WHERE created_at > NOW() - INTERVAL '%s days'
+                    FROM omnidigest.news_articles
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
                     GROUP BY category
                     ORDER BY count DESC
                 """, (days,))
@@ -675,17 +673,17 @@ async def get_article_stats(days: int = 7):
                         COUNT(*) FILTER (WHERE score >= 80) as high,
                         COUNT(*) FILTER (WHERE score >= 60 AND score < 80) as medium,
                         COUNT(*) FILTER (WHERE score < 60) as low
-                    FROM news_articles
-                    WHERE created_at > NOW() - INTERVAL '%s days'
+                    FROM omnidigest.news_articles
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
                 """, (days,))
                 score_dist = cur.fetchone()
 
                 # Daily trend
                 cur.execute("""
-                    SELECT DATE(created_at) as date, COUNT(*) as count
-                    FROM news_articles
-                    WHERE created_at > NOW() - INTERVAL '%s days'
-                    GROUP BY DATE(created_at)
+                    SELECT DATE("created_at") as date, COUNT(*) as count
+                    FROM omnidigest.news_articles
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
+                    GROUP BY DATE("created_at")
                     ORDER BY date
                 """, (days,))
                 trend = cur.fetchall()
@@ -723,10 +721,10 @@ async def get_breaking_stats(days: int = 7):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 # Recent events
                 cur.execute("""
-                    SELECT id, event_title, summary, category, impact_score, pushed, created_at
-                    FROM breaking_events
-                    WHERE created_at > NOW() - INTERVAL '%s days'
-                    ORDER BY created_at DESC
+                    SELECT id, event_title, summary, category, impact_score, pushed, "created_at"
+                    FROM omnidigest.breaking_events
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
+                    ORDER BY "created_at" DESC
                     LIMIT 20
                 """, (days,))
                 recent_events = cur.fetchall()
@@ -734,8 +732,8 @@ async def get_breaking_stats(days: int = 7):
                 # Active stories
                 cur.execute("""
                     SELECT id, story_title, category, peak_score, source_count, status, pushed
-                    FROM breaking_stories
-                    WHERE created_at > NOW() - INTERVAL '%s days'
+                    FROM omnidigest.breaking_stories
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
                     ORDER BY peak_score DESC
                     LIMIT 10
                 """, (days,))
@@ -748,8 +746,8 @@ async def get_breaking_stats(days: int = 7):
                         COUNT(*) FILTER (WHERE pushed = true) as pushed,
                         AVG(impact_score) as avg_score,
                         MAX(impact_score) as max_score
-                    FROM breaking_events
-                    WHERE created_at > NOW() - INTERVAL '%s days'
+                    FROM omnidigest.breaking_events
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
                 """, (days,))
                 summary = cur.fetchone()
 
@@ -791,23 +789,23 @@ async def get_twitter_stats(days: int = 7):
                         COUNT(*) FILTER (WHERE status = 'active') as active,
                         COUNT(*) FILTER (WHERE status = 'cooling') as cooling,
                         COUNT(*) FILTER (WHERE status = 'error') as error
-                    FROM twitter_accounts
+                    FROM omnidigest.twitter_accounts
                 """)
                 accounts = cur.fetchone()
 
                 # Monitored users
                 cur.execute("""
                     SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_active = true) as active
-                    FROM twitter_monitored_users
+                    FROM omnidigest.twitter_monitored_users
                 """)
                 users = cur.fetchone()
 
                 # Recent events
                 cur.execute("""
-                    SELECT id, event_title, summary, category, peak_score, source_count, pushed, created_at
-                    FROM twitter_events
-                    WHERE created_at > NOW() - INTERVAL '%s days'
-                    ORDER BY created_at DESC
+                    SELECT id, event_title, summary, category, peak_score, source_count, pushed, "created_at"
+                    FROM omnidigest.twitter_events
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
+                    ORDER BY "created_at" DESC
                     LIMIT 10
                 """, (days,))
                 events = cur.fetchall()
@@ -816,10 +814,9 @@ async def get_twitter_stats(days: int = 7):
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_tweets,
-                        COUNT(*) FILTER (WHERE status = 1) as processed,
-                        COUNT(*) FILTER (WHERE impact_score >= 80) as high_impact
-                    FROM twitter_stream_raw
-                    WHERE created_at > NOW() - INTERVAL '%s days'
+                        COUNT(*) FILTER (WHERE status = 1) as processed
+                    FROM omnidigest.twitter_stream_raw
+                    WHERE "created_at" > NOW() - INTERVAL '%s days'
                 """, (days,))
                 summary = cur.fetchone()
 
@@ -849,13 +846,13 @@ async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str
     def get_stats():
         # Determine time filter
         if start_date and end_date:
-            time_condition = "u.created_at >= %s AND u.created_at < %s"
+            time_condition = 'u."created_at" >= %s AND u."created_at" < %s'
             time_params = (start_date, end_date + ' 23:59:59')
         elif hours:
-            time_condition = "u.created_at > NOW() - ('%s hours')::interval"
+            time_condition = 'u."created_at" > NOW() - (\'%s hours\')::interval'
             time_params = (hours,)
         else:
-            time_condition = "u.created_at > NOW() - INTERVAL '168 hours'"
+            time_condition = 'u."created_at" > NOW() - INTERVAL \'168 hours\''
             time_params = ()
 
         with db._get_connection() as conn:
@@ -865,7 +862,7 @@ async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str
                     SELECT id, name, model_name, priority, fail_count, is_active, last_error, last_success,
                            COALESCE(input_price_per_m, 7.0) as input_price_per_m,
                            COALESCE(output_price_per_m, 7.0) as output_price_per_m
-                    FROM llm_models
+                    FROM omnidigest.llm_models
                     ORDER BY priority DESC
                 """)
                 models = cur.fetchall()
@@ -887,8 +884,8 @@ async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str
                                 + SUM(COALESCE(u.cached_tokens, 0)) * COALESCE(m.input_price_per_m, 7.0) / 1000000.0 * 0.25
                                 + SUM(u.completion_tokens) * COALESCE(m.output_price_per_m, 7.0) / 1000000.0
                             , 4) as estimated_cost
-                        FROM token_usage u
-                        LEFT JOIN llm_models m ON u.model_name = m.model_name
+                        FROM omnidigest.token_usage u
+                        LEFT JOIN omnidigest.llm_models m ON u.model_name = m.model_name
                         WHERE {time_condition}
                         GROUP BY u.model_name, m.input_price_per_m, m.output_price_per_m
                         ORDER BY total_tokens DESC
@@ -910,8 +907,8 @@ async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str
                                 + SUM(COALESCE(u.cached_tokens, 0)) * COALESCE(m.input_price_per_m, 7.0) / 1000000.0 * 0.25
                                 + SUM(u.completion_tokens) * COALESCE(m.output_price_per_m, 7.0) / 1000000.0
                             , 4) as estimated_cost
-                        FROM token_usage u
-                        LEFT JOIN llm_models m ON u.model_name = m.model_name
+                        FROM omnidigest.token_usage u
+                        LEFT JOIN omnidigest.llm_models m ON u.model_name = m.model_name
                         WHERE {time_condition}
                         GROUP BY u.model_name, m.input_price_per_m, m.output_price_per_m
                         ORDER BY total_tokens DESC
@@ -1287,44 +1284,44 @@ async def get_sources(service_type: str = "daily", enabled: bool = None):
                 if service_type == "daily":
                     if enabled is not None:
                         cur.execute("""
-                            SELECT id, url, name, enabled, fail_count, last_error, created_at
-                            FROM rss_sources
+                            SELECT id, url, name, enabled, fail_count, last_error, "created_at"
+                            FROM omnidigest.rss_sources
                             WHERE enabled = %s
                             ORDER BY name
                         """, (enabled,))
                     else:
                         cur.execute("""
-                            SELECT id, url, name, enabled, fail_count, last_error, created_at
-                            FROM rss_sources
+                            SELECT id, url, name, enabled, fail_count, last_error, "created_at"
+                            FROM omnidigest.rss_sources
                             ORDER BY name
                         """)
                 elif service_type == "breaking":
                     if enabled is not None:
                         cur.execute("""
-                            SELECT id, url, name, platform, enabled, fail_count, success_count, last_error, created_at
-                            FROM breaking_rss_sources
+                            SELECT id, url, name, platform, enabled, fail_count, success_count, last_error, "created_at"
+                            FROM omnidigest.breaking_rss_sources
                             WHERE enabled = %s
                             ORDER BY name
                         """, (enabled,))
                     else:
                         cur.execute("""
-                            SELECT id, url, name, platform, enabled, fail_count, success_count, last_error, created_at
-                            FROM breaking_rss_sources
+                            SELECT id, url, name, platform, enabled, fail_count, success_count, last_error, "created_at"
+                            FROM omnidigest.breaking_rss_sources
                             ORDER BY name
                         """)
                 elif service_type == "twitter":
                     # Twitter uses accounts instead of RSS
                     if enabled is not None:
                         cur.execute("""
-                            SELECT id, username, status, fail_count, last_error, last_used_at, created_at
-                            FROM twitter_accounts
+                            SELECT id, username, status, fail_count, last_error, last_used_at, "created_at"
+                            FROM omnidigest.twitter_accounts
                             WHERE status = %s
                             ORDER BY username
                         """, ("active" if enabled else "error",))
                     else:
                         cur.execute("""
-                            SELECT id, username, status, fail_count, last_error, last_used_at, created_at
-                            FROM twitter_accounts
+                            SELECT id, username, status, fail_count, last_error, last_used_at, "created_at"
+                            FROM omnidigest.twitter_accounts
                             ORDER BY username
                         """)
                 else:
@@ -1372,7 +1369,7 @@ async def add_rss_source(url: str, name: str):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 try:
                     cur.execute("""
-                        INSERT INTO rss_sources (id, url, name, enabled)
+                        INSERT INTO omnidigest.rss_sources (id, url, name, enabled)
                         VALUES (%s, %s, %s, true)
                         ON CONFLICT (url) DO NOTHING
                         RETURNING id
@@ -1420,15 +1417,15 @@ async def update_rss_source(source_id: str, name: str = None, url: str = None):
                 try:
                     if name and url:
                         cur.execute("""
-                            UPDATE rss_sources SET name = %s, url = %s WHERE id = %s
+                            UPDATE omnidigest.rss_sources SET name = %s, url = %s WHERE id = %s
                         """, (name, url, source_id))
                     elif name:
                         cur.execute("""
-                            UPDATE rss_sources SET name = %s WHERE id = %s
+                            UPDATE omnidigest.rss_sources SET name = %s WHERE id = %s
                         """, (name, source_id))
                     elif url:
                         cur.execute("""
-                            UPDATE rss_sources SET url = %s WHERE id = %s
+                            UPDATE omnidigest.rss_sources SET url = %s WHERE id = %s
                         """, (url, source_id))
                     else:
                         return False
@@ -1470,7 +1467,7 @@ async def delete_rss_source(source_id: str):
         with db._get_connection() as conn:
             with conn.cursor() as cur:
                 try:
-                    cur.execute("DELETE FROM rss_sources WHERE id = %s", (source_id,))
+                    cur.execute("DELETE FROM omnidigest.rss_sources WHERE id = %s", (source_id,))
                     conn.commit()
                     return cur.rowcount > 0
                 except Exception as e:
@@ -1512,14 +1509,14 @@ async def toggle_rss_source(source_id: str):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 try:
                     # Get current status
-                    cur.execute("SELECT enabled FROM rss_sources WHERE id = %s", (source_id,))
+                    cur.execute("SELECT enabled FROM omnidigest.rss_sources WHERE id = %s", (source_id,))
                     result = cur.fetchone()
                     if not result:
                         return None
 
                     new_status = not result['enabled']
                     cur.execute("""
-                        UPDATE rss_sources SET enabled = %s WHERE id = %s
+                        UPDATE omnidigest.rss_sources SET enabled = %s WHERE id = %s
                     """, (new_status, source_id))
                     conn.commit()
                     return new_status
@@ -1560,9 +1557,9 @@ async def list_api_keys():
         with db._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT id, client_name, is_active, created_at
-                    FROM api_keys
-                    ORDER BY created_at DESC
+                    SELECT id, client_name, is_active, "created_at"
+                    FROM omnidigest.api_keys
+                    ORDER BY "created_at" DESC
                 """)
                 return cur.fetchall()
 
@@ -1595,7 +1592,7 @@ async def create_api_key(client_name: str):
             with db._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                        INSERT INTO api_keys (client_name, key_hash)
+                        INSERT INTO omnidigest.api_keys (client_name, key_hash)
                         VALUES (%s, %s)
                         ON CONFLICT (client_name) DO UPDATE SET key_hash = EXCLUDED.key_hash, is_active = true
                         RETURNING id
@@ -1639,7 +1636,7 @@ async def revoke_api_key(client_name: str):
             with conn.cursor() as cur:
                 try:
                     cur.execute("""
-                        UPDATE api_keys SET is_active = false WHERE client_name = %s
+                        UPDATE omnidigest.api_keys SET is_active = false WHERE client_name = %s
                     """, (client_name,))
                     conn.commit()
                     return cur.rowcount > 0
@@ -1675,7 +1672,7 @@ async def activate_api_key(client_name: str):
             with conn.cursor() as cur:
                 try:
                     cur.execute("""
-                        UPDATE api_keys SET is_active = true WHERE client_name = %s
+                        UPDATE omnidigest.api_keys SET is_active = true WHERE client_name = %s
                     """, (client_name,))
                     conn.commit()
                     return cur.rowcount > 0
@@ -1757,29 +1754,29 @@ async def get_kg_stats():
             with db._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     # Check total records in breaking_stream_raw
-                    cur.execute("SELECT COUNT(*) as total FROM breaking_stream_raw")
+                    cur.execute("SELECT COUNT(*) as total FROM omnidigest.breaking_stream_raw")
                     total_raw = cur.fetchone().get("total", 0)
                     logging.info(f"Total breaking_stream_raw: {total_raw}")
 
                     # Count kg_processed
-                    cur.execute("SELECT COUNT(*) as processed FROM breaking_stream_raw WHERE kg_processed = true")
+                    cur.execute("SELECT COUNT(*) as processed FROM omnidigest.breaking_stream_raw WHERE kg_processed = true")
                     kg_processed = cur.fetchone().get("processed", 0)
                     logging.info(f"kg_processed count: {kg_processed}")
 
                     # Count extracted today (kg_processed = true in last 24 hours)
                     cur.execute("""
                         SELECT COUNT(*) as count
-                        FROM breaking_stream_raw
+                        FROM omnidigest.breaking_stream_raw
                         WHERE kg_processed = true
-                        AND created_at > NOW() - INTERVAL '24 hours'
+                        AND "created_at" > NOW() - INTERVAL '24 hours'
                     """)
                     extracted_result = cur.fetchone()
                     extracted_today = extracted_result.get("count", 0) if extracted_result else 0
 
                     # Get last extraction time
                     cur.execute("""
-                        SELECT MAX(created_at) as last_extraction
-                        FROM breaking_stream_raw
+                        SELECT MAX("created_at") as last_extraction
+                        FROM omnidigest.breaking_stream_raw
                         WHERE kg_processed = true
                     """)
                     last_ext_result = cur.fetchone()
@@ -2131,7 +2128,7 @@ async def get_astock_news(limit: int = 20, hours: int = 24):
                 # 从 news_articles 获取财经类新闻
                 query = """
                 SELECT id, title, content, source_url, source_name, publish_time
-                FROM news_articles
+                FROM omnidigest.news_articles
                 WHERE publish_time > CURRENT_TIMESTAMP - ('%s hours')::interval
                   AND (
                     title ILIKE '%%A股%%' OR title ILIKE '%%股市%%' OR title ILIKE '%%大盘%%'
@@ -2169,7 +2166,7 @@ async def get_astock_news(limit: int = 20, hours: int = 24):
                 try:
                     query2 = """
                     SELECT id, raw_text as content, author as source_name, publish_time
-                    FROM breaking_stream_raw
+                    FROM omnidigest.breaking_stream_raw
                     WHERE publish_time > CURRENT_TIMESTAMP - ('%s hours')::interval
                       AND (
                         raw_text ILIKE '%%A股%%' OR raw_text ILIKE '%%股市%%' OR raw_text ILIKE '%%大盘%%'
@@ -2233,7 +2230,7 @@ async def get_astock_latest_analysis():
                 SELECT id, prediction_date, index_type, prediction_type,
                        prediction_direction, confidence_score, news_summary,
                        actual_close_change, is_correct
-                FROM astock_predictions
+                FROM omnidigest.astock_predictions
                 ORDER BY prediction_date DESC, prediction_type DESC
                 LIMIT 10
                 """
@@ -2439,7 +2436,7 @@ async def get_stock_news(symbol: str, limit: int = 10):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
                 SELECT id, title, content, source_url, source_name, publish_time
-                FROM news_articles
+                FROM omnidigest.news_articles
                 WHERE publish_time > CURRENT_TIMESTAMP - INTERVAL '24 hours'
                   AND (
                     title ILIKE %s OR content ILIKE %s OR title ILIKE %s

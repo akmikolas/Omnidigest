@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS twitter_accounts (
     last_error TEXT,
     last_used_at TIMESTAMP,
     fail_count INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW()
+    "created_at" TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_twitter_accounts_status ON twitter_accounts(status);
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS twitter_monitored_users (
     is_active BOOLEAN DEFAULT TRUE,
     category VARCHAR(50),
     last_seen_tweet_id VARCHAR(50) DEFAULT '0',
-    created_at TIMESTAMP DEFAULT NOW()
+    "created_at" TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_twitter_monitored_active ON twitter_monitored_users(is_active);
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS twitter_stream_raw (
     reply_to_tweet_id VARCHAR(50),
     metadata JSONB, -- likes, retweets, images, etc.
     status SMALLINT DEFAULT 0, -- 0: raw, 1: processed
-    created_at TIMESTAMP DEFAULT NOW()
+    "created_at" TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_twitter_stream_id ON twitter_stream_raw(tweet_id);

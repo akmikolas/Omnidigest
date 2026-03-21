@@ -121,7 +121,7 @@ class AnalysisService:
             try:
                 with self.db._get_connection() as conn:
                     with conn.cursor() as cur:
-                        cur.execute("SELECT title, content, source_url, publish_time FROM news_articles WHERE id = %s", (art_id,))
+                        cur.execute("SELECT title, content, source_url, publish_time FROM omnidigest.news_articles WHERE id = %s", (art_id,))
                         row = cur.fetchone()
                         if row:
                             title, content, url, pub_time = row

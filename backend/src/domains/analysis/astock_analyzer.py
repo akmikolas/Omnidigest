@@ -146,7 +146,7 @@ class AStockAnalyzer:
         # news_articles: title, content, source_name, publish_time
         query1 = """
         SELECT id, title, content, source_url, source_name, publish_time, 'news_articles' as source_table
-        FROM news_articles
+        FROM omnidigest.news_articles
         WHERE publish_time > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - (%s || ' hours')::INTERVAL
         """
 
@@ -155,17 +155,17 @@ class AStockAnalyzer:
         SELECT id, raw_text as content, source_url, author as source_name, publish_time,
                'breaking_stream_raw' as source_table,
                raw_text as title  -- use raw_text as title fallback
-        FROM breaking_stream_raw
+        FROM omnidigest.breaking_stream_raw
         WHERE publish_time > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - (%s || ' hours')::INTERVAL
         """
 
         # twitter_stream_raw: raw_text (as content), author_screen_name, created_at (as publish_time), no source_url
         query3 = """
-        SELECT id, raw_text as content, null as source_url, author_screen_name as source_name, created_at as publish_time,
+        SELECT id, raw_text as content, null as source_url, author_screen_name as source_name, "created_at" as publish_time,
                'twitter_stream_raw' as source_table,
                raw_text as title
-        FROM twitter_stream_raw
-        WHERE created_at > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - (%s || ' hours')::INTERVAL
+        FROM omnidigest.twitter_stream_raw
+        WHERE "created_at" > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - (%s || ' hours')::INTERVAL
         """
 
         try:
@@ -538,9 +538,9 @@ class AStockAnalyzer:
             预测记录ID
         """
         query = """
-        INSERT INTO astock_predictions (
+        INSERT INTO omnidigest.astock_predictions (
             id, prediction_date, index_type, prediction_type,
-            prediction_direction, confidence_score, news_summary, created_at, updated_at
+            prediction_direction, confidence_score, news_summary, "created_at", "updated_at"
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """
@@ -716,7 +716,7 @@ class AStockAnalyzer:
         """获取指定日期的预测记录"""
         query = """
         SELECT id, index_type, prediction_type, prediction_direction, confidence_score
-        FROM astock_predictions
+        FROM omnidigest.astock_predictions
         WHERE prediction_date = %s
         ORDER BY index_type, prediction_type
         """
@@ -741,11 +741,11 @@ class AStockAnalyzer:
             是否更新成功
         """
         # 先获取预测的方向
-        query_select = "SELECT prediction_direction FROM astock_predictions WHERE id = %s"
+        query_select = "SELECT prediction_direction FROM omnidigest.astock_predictions WHERE id = %s"
 
         # 更新实际结果
         query_update = """
-        UPDATE astock_predictions
+        UPDATE omnidigest.astock_predictions
         SET actual_close_change = %s,
             is_correct = CASE
                 WHEN prediction_direction = '上涨' AND %s > 0 THEN TRUE
@@ -753,7 +753,7 @@ class AStockAnalyzer:
                 WHEN prediction_direction = '震荡' THEN TRUE
                 ELSE FALSE
             END,
-            updated_at = %s
+            "updated_at" = %s
         WHERE id = %s
         """
 
@@ -793,7 +793,7 @@ class AStockAnalyzer:
             COUNT(*) as total_predictions,
             SUM(CASE WHEN is_correct = TRUE THEN 1 ELSE 0 END) as correct_predictions,
             AVG(confidence_score) as avg_confidence
-        FROM astock_predictions
+        FROM omnidigest.astock_predictions
         WHERE prediction_date > CURRENT_DATE - (%s || ' days')::INTERVAL
           AND is_correct IS NOT NULL
         GROUP BY index_type, prediction_type

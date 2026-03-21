@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS breaking_rss_sources (
     enabled BOOLEAN DEFAULT TRUE,
     fail_count INT DEFAULT 0,
     last_error TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
+    "created_at" TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_brss_url ON breaking_rss_sources(url);
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS breaking_stream_raw (
     author VARCHAR(255),                   -- Author or account name
     publish_time TIMESTAMP,                -- Original publish time of the content
     status SMALLINT DEFAULT 0,             -- 0 = unprocessed, 1 = processed, 2 = error/ignored
-    created_at TIMESTAMP DEFAULT NOW()     -- Our ingestion time
+    "created_at" TIMESTAMP DEFAULT NOW()     -- Our ingestion time
 );
 
 CREATE INDEX IF NOT EXISTS idx_bsr_status ON breaking_stream_raw(status);
@@ -53,13 +53,13 @@ CREATE TABLE IF NOT EXISTS breaking_events (
     impact_score INT DEFAULT 0,
     ragflow_id VARCHAR(100),
     pushed BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT NOW(),
+    "created_at" TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_be_score ON breaking_events(impact_score);
 CREATE INDEX IF NOT EXISTS idx_be_cat ON breaking_events(category);
-CREATE INDEX IF NOT EXISTS idx_be_created ON breaking_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_be_created ON breaking_events("created_at");
 
 -- 4. Mapping Table (Many-to-One: Stream Items -> Event)
 -- Links raw posts to the consolidated event they describe.
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS event_stream_mapping (
     id UUID PRIMARY KEY,
     event_id UUID REFERENCES breaking_events(id) ON DELETE CASCADE,
     stream_id UUID REFERENCES breaking_stream_raw(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT NOW()
+    "created_at" TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_esm_event ON event_stream_mapping(event_id);

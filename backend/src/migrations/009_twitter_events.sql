@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS twitter_events (
     pushed BOOLEAN DEFAULT FALSE,
     push_count INT DEFAULT 0,
     last_pushed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
+    "created_at" TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -24,11 +24,11 @@ CREATE TABLE IF NOT EXISTS twitter_event_tweet_mapping (
     event_id UUID REFERENCES twitter_events(id) ON DELETE CASCADE,
     tweet_id VARCHAR(50) REFERENCES twitter_stream_raw(tweet_id) ON DELETE CASCADE,
     author_screen_name VARCHAR(100),
-    created_at TIMESTAMP DEFAULT NOW()
+    "created_at" TIMESTAMP DEFAULT NOW()
 );
 
 -- Indexes for efficient event lookups
-CREATE INDEX IF NOT EXISTS idx_twitter_events_created_at ON twitter_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_twitter_events_created_at ON twitter_events("created_at");
 CREATE INDEX IF NOT EXISTS idx_twitter_events_category ON twitter_events(category);
 CREATE INDEX IF NOT EXISTS idx_twitter_event_mapping_event_id ON twitter_event_tweet_mapping(event_id);
 CREATE INDEX IF NOT EXISTS idx_twitter_event_mapping_tweet_id ON twitter_event_tweet_mapping(tweet_id);

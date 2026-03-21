@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS astock_predictions (
     news_summary TEXT,  -- 基于的主要新闻摘要
     actual_close_change NUMERIC(10,4),  -- 实际收盘涨跌幅（收盘后填写）
     is_correct BOOLEAN,  -- 预测是否正确
-    created_at TIMESTAMP DEFAULT NOW(),
+    "created_at" TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 

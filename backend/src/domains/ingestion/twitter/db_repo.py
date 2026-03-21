@@ -29,13 +29,13 @@ class TwitterDbMixin:
         """
         # First, release accounts that have cooled down
         release_query = """
-            UPDATE twitter_accounts
+            UPDATE omnidigest.twitter_accounts
             SET status = 'active', last_error = NULL
             WHERE status = 'cooling' AND cooled_until IS NOT NULL AND cooled_until <= NOW()
         """
 
         query = """
-            SELECT id, username, auth_token, ct0 FROM twitter_accounts
+            SELECT id, username, auth_token, ct0 FROM omnidigest.twitter_accounts
             WHERE status = 'active'
                OR (status = 'cooling' AND (cooled_until IS NULL OR cooled_until <= NOW()))
             ORDER BY fail_count ASC, last_used_at ASC NULLS FIRST
@@ -62,14 +62,14 @@ class TwitterDbMixin:
         """
         if status == 'cooling':
             query = """
-                UPDATE twitter_accounts
+                UPDATE omnidigest.twitter_accounts
                 SET status = %s, last_error = %s, fail_count = fail_count + 1,
                     cooled_until = NOW() + INTERVAL '%s minutes'
                 WHERE id = %s
             """
         else:
             query = """
-                UPDATE twitter_accounts
+                UPDATE omnidigest.twitter_accounts
                 SET status = %s, last_error = %s, fail_count = fail_count + 1,
                     cooled_until = NULL
                 WHERE id = %s
@@ -90,7 +90,7 @@ class TwitterDbMixin:
         Updates the last_used_at timestamp for an account.
         更新账号的最后使用时间戳。
         """
-        query = "UPDATE twitter_accounts SET last_used_at = NOW(), fail_count = 0 WHERE id = %s"
+        query = "UPDATE omnidigest.twitter_accounts SET last_used_at = NOW(), fail_count = 0 WHERE id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -106,7 +106,7 @@ class TwitterDbMixin:
         Retrieves all active monitored Twitter users.
         检索所有活跃的被监听推特用户。
         """
-        query = "SELECT rest_id, screen_name, last_seen_tweet_id FROM twitter_monitored_users WHERE is_active = TRUE"
+        query = "SELECT rest_id, screen_name, last_seen_tweet_id FROM omnidigest.twitter_monitored_users WHERE is_active = TRUE"
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -121,7 +121,7 @@ class TwitterDbMixin:
         Updates the last_seen_tweet_id for a monitored user.
         更新被监听用户的最后见到的推文 ID。
         """
-        query = "UPDATE twitter_monitored_users SET last_seen_tweet_id = %s WHERE rest_id = %s"
+        query = "UPDATE omnidigest.twitter_monitored_users SET last_seen_tweet_id = %s WHERE rest_id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -135,7 +135,7 @@ class TwitterDbMixin:
         Retrieves unprocessed raw tweets.
         检索未处理的原始推文。
         """
-        query = "SELECT id, tweet_id, author_screen_name, raw_text, is_reply FROM twitter_stream_raw WHERE status = 0 LIMIT %s"
+        query = "SELECT id, tweet_id, author_screen_name, raw_text, is_reply FROM omnidigest.twitter_stream_raw WHERE status = 0 LIMIT %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -151,8 +151,8 @@ class TwitterDbMixin:
         更新推文流的过滤结果。
         """
         query = """
-        UPDATE twitter_stream_raw 
-        SET status = %s, impact_score = %s, category = %s, summary_zh = %s, is_thread_start = %s 
+        UPDATE omnidigest.twitter_stream_raw
+        SET status = %s, impact_score = %s, category = %s, summary_zh = %s, is_thread_start = %s
         WHERE id = %s
         """
         try:
@@ -171,7 +171,7 @@ class TwitterDbMixin:
         将原始推文插入摄取流。
         """
         query = """
-        INSERT INTO twitter_stream_raw (id, tweet_id, author_screen_name, raw_text, is_reply, reply_to_tweet_id, metadata)
+        INSERT INTO omnidigest.twitter_stream_raw (id, tweet_id, author_screen_name, raw_text, is_reply, reply_to_tweet_id, metadata)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (tweet_id) DO NOTHING
         RETURNING id;
@@ -197,10 +197,10 @@ class TwitterDbMixin:
         """
         query = """
         SELECT id, event_title, summary, category, peak_score, source_count,
-               first_tweet_id, pushed, push_count, last_pushed_at, created_at, updated_at
-        FROM twitter_events
-        WHERE created_at >= NOW() - INTERVAL '%s hours'
-        ORDER BY created_at DESC
+               first_tweet_id, pushed, push_count, last_pushed_at, "created_at", "updated_at"
+        FROM omnidigest.twitter_events
+        WHERE "created_at" >= NOW() - INTERVAL '%s hours'
+        ORDER BY "created_at" DESC
         """
         try:
             with self._get_connection() as conn:
@@ -219,9 +219,9 @@ class TwitterDbMixin:
         """
         query = """
         SELECT id, event_title, summary, category, peak_score, source_count,
-               first_tweet_id, pushed, push_count, last_pushed_at, created_at, updated_at
-        FROM twitter_events
-        WHERE created_at >= NOW() - INTERVAL '%s minutes'
+               first_tweet_id, pushed, push_count, last_pushed_at, "created_at", "updated_at"
+        FROM omnidigest.twitter_events
+        WHERE "created_at" >= NOW() - INTERVAL '%s minutes'
           AND (
             -- Title contains any word from search text (simple matching)
             %s::text ILIKE '%%' || split_part(%s::text, ' ', 1) || '%%'
@@ -251,7 +251,7 @@ class TwitterDbMixin:
         创建新的推特事件。
         """
         query = """
-        INSERT INTO twitter_events (id, event_title, summary, category, peak_score, source_count, first_tweet_id)
+        INSERT INTO omnidigest.twitter_events (id, event_title, summary, category, peak_score, source_count, first_tweet_id)
         VALUES (%s, %s, %s, %s, %s, 1, %s)
         RETURNING id;
         """
@@ -288,10 +288,10 @@ class TwitterDbMixin:
         if not updates:
             return False
 
-        updates.append("updated_at = NOW()")
+        updates.append('"updated_at" = NOW()')
         params.append(event_id)
 
-        query = f"UPDATE twitter_events SET {', '.join(updates)} WHERE id = %s"
+        query = f"UPDATE omnidigest.twitter_events SET {', '.join(updates)} WHERE id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -308,8 +308,8 @@ class TwitterDbMixin:
         增加事件的 source_count 并返回新计数。
         """
         query = """
-        UPDATE twitter_events
-        SET source_count = source_count + 1, updated_at = NOW()
+        UPDATE omnidigest.twitter_events
+        SET source_count = source_count + 1, "updated_at" = NOW()
         WHERE id = %s
         RETURNING source_count;
         """
@@ -330,7 +330,7 @@ class TwitterDbMixin:
         将推文链接到事件。
         """
         query = """
-        INSERT INTO twitter_event_tweet_mapping (id, event_id, tweet_id, author_screen_name)
+        INSERT INTO omnidigest.twitter_event_tweet_mapping (id, event_id, tweet_id, author_screen_name)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT DO NOTHING;
         """
@@ -350,7 +350,7 @@ class TwitterDbMixin:
         Gets the source_count for an event.
         获取事件的 source_count。
         """
-        query = "SELECT source_count FROM twitter_events WHERE id = %s"
+        query = "SELECT source_count FROM omnidigest.twitter_events WHERE id = %s"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -368,8 +368,8 @@ class TwitterDbMixin:
         将事件标记为已推送并更新 push_count。
         """
         query = """
-        UPDATE twitter_events
-        SET pushed = TRUE, push_count = push_count + 1, last_pushed_at = NOW(), updated_at = NOW()
+        UPDATE omnidigest.twitter_events
+        SET pushed = TRUE, push_count = push_count + 1, last_pushed_at = NOW(), "updated_at" = NOW()
         WHERE id = %s
         """
         try:
@@ -389,7 +389,7 @@ class TwitterDbMixin:
         """
         query = """
         SELECT author_screen_name, COUNT(*) as tweet_count
-        FROM twitter_event_tweet_mapping
+        FROM omnidigest.twitter_event_tweet_mapping
         WHERE event_id = %s
         GROUP BY author_screen_name
         ORDER BY tweet_count DESC
@@ -410,10 +410,10 @@ class TwitterDbMixin:
         """
         query = """
         SELECT r.tweet_url, r.text
-        FROM twitter_event_tweet_mapping m
-        JOIN twitter_stream_raw r ON r.tweet_id = m.tweet_id
+        FROM omnidigest.twitter_event_tweet_mapping m
+        JOIN omnidigest.twitter_stream_raw r ON r.tweet_id = m.tweet_id
         WHERE m.event_id = %s
-        ORDER BY r.created_at ASC
+        ORDER BY r."created_at" ASC
         LIMIT %s
         """
         try:
@@ -433,8 +433,8 @@ class TwitterDbMixin:
         """
         query = """
         SELECT id, event_title, summary, category, peak_score, source_count,
-               first_tweet_id, pushed, push_count, last_pushed_at, created_at, updated_at
-        FROM twitter_events
+               first_tweet_id, pushed, push_count, last_pushed_at, "created_at", "updated_at"
+        FROM omnidigest.twitter_events
         WHERE id = %s
         """
         try:

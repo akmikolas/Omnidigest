@@ -240,7 +240,10 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
                     for table in required_tables:
                         # Query the information_schema to verify table presence
                         # 查询 information_schema 以验证表是否存在
-                        cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (table,))
+                        cur.execute(
+                            "SELECT 1 FROM information_schema.tables WHERE table_schema = 'omnidigest' AND table_name = %s",
+                            (table,)
+                        )
                         if not cur.fetchone():
                             missing_tables.append(table)
                             logger.warning(f"Missing table: {table}")
@@ -252,7 +255,10 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
                 with self._get_connection() as conn:
                     with conn.cursor() as cur:
                         for table in missing_tables:
-                            cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (table,))
+                            cur.execute(
+                                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'omnidigest' AND table_name = %s",
+                                (table,)
+                            )
                             if not cur.fetchone():
                                 logger.error(f"Failed to create table: {table}")
                                 return False
@@ -265,226 +271,253 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
 
     def init_db(self):
         """
-        Initializes the database schema if tables do not exist. Creates the 'news_articles' and 'rss_sources' tables along with necessary indexes.
-        如果表不存在，初始化数据库模式。创建 'news_articles' 和 'rss_sources' 表以及必要的索引。
+        Initializes the database schema if tables do not exist. Creates all required tables under the 'omnidigest' schema.
+        如果表不存在，初始化数据库模式。在 'omnidigest' schema 下创建所有必需的表。
         """
-        query = """
-        CREATE TABLE IF NOT EXISTS news_articles (
-            id UUID PRIMARY KEY,
-            title VARCHAR(512) NOT NULL,
-            content TEXT NOT NULL,
-            source_url TEXT UNIQUE,
-            source_name VARCHAR(100),
-            status SMALLINT DEFAULT 0,
-            ragflow_id VARCHAR(100),
-            category VARCHAR(100),
-            score INT,
-            summary_raw TEXT,
-            publish_time TIMESTAMP,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_news_status ON news_articles(status);
-        CREATE INDEX IF NOT EXISTS idx_news_url ON news_articles(source_url);
-        CREATE INDEX IF NOT EXISTS idx_news_category ON news_articles(category);
-        CREATE INDEX IF NOT EXISTS idx_news_score ON news_articles(score);
-        
-        CREATE TABLE IF NOT EXISTS rss_sources (
-            id UUID PRIMARY KEY,
-            url TEXT UNIQUE NOT NULL,
-            name VARCHAR(255),
-            enabled BOOLEAN DEFAULT TRUE,
-            fail_count INT DEFAULT 0,
-            last_error TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_rss_enabled ON rss_sources(enabled);
-        
-        -- Breaking News Subsystem Tables
-        CREATE TABLE IF NOT EXISTS breaking_rss_sources (
-            id UUID PRIMARY KEY,
-            url VARCHAR(512) UNIQUE NOT NULL,
-            name VARCHAR(100),
-            platform VARCHAR(50) NOT NULL,
-            enabled BOOLEAN DEFAULT TRUE,
-            fail_count INT DEFAULT 0,
-            success_count INT DEFAULT 0,
-            last_error TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_brss_url ON breaking_rss_sources(url);
-        CREATE INDEX IF NOT EXISTS idx_brss_enabled ON breaking_rss_sources(enabled);
+        schema = "omnidigest"
+        queries = [
+            f"""CREATE SCHEMA IF NOT EXISTS {schema};""",
 
-    CREATE TABLE IF NOT EXISTS breaking_stream_raw (
-        id UUID PRIMARY KEY,
-        source_platform VARCHAR(100) NOT NULL,
-        source_url TEXT UNIQUE NOT NULL,
-        raw_text TEXT NOT NULL,
-        author VARCHAR(255),
-        publish_time TIMESTAMP,
-        status SMALLINT DEFAULT 0,
-        kg_processed BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_bsr_status ON breaking_stream_raw(status);
-    CREATE INDEX IF NOT EXISTS idx_bsr_platform ON breaking_stream_raw(source_platform);
-    CREATE INDEX IF NOT EXISTS idx_bsr_pub_time ON breaking_stream_raw(publish_time);
-    
-    CREATE TABLE IF NOT EXISTS breaking_stories (
-        id UUID PRIMARY KEY,
-        story_title VARCHAR(512) NOT NULL,
-        story_summary TEXT,
-        category VARCHAR(100),
-        peak_score INT DEFAULT 0,
-        source_count INT DEFAULT 0,
-        status VARCHAR(50) DEFAULT 'developing',
-        pushed BOOLEAN DEFAULT FALSE,
-        push_count INT DEFAULT 0,
-        last_pushed_at TIMESTAMP,
-        last_pushed_score INT DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_stories_score ON breaking_stories(peak_score);
-    CREATE INDEX IF NOT EXISTS idx_stories_status ON breaking_stories(status);
+            f"""CREATE TABLE IF NOT EXISTS {schema}.news_articles (
+                id UUID PRIMARY KEY,
+                title VARCHAR(512) NOT NULL,
+                content TEXT NOT NULL,
+                source_url TEXT UNIQUE,
+                source_name VARCHAR(100),
+                status SMALLINT DEFAULT 0,
+                ragflow_id VARCHAR(100),
+                category VARCHAR(100),
+                score INT,
+                summary_raw TEXT,
+                publish_time TIMESTAMP,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_news_status ON {schema}.news_articles(status);
+            CREATE INDEX IF NOT EXISTS idx_news_url ON {schema}.news_articles(source_url);
+            CREATE INDEX IF NOT EXISTS idx_news_category ON {schema}.news_articles(category);
+            CREATE INDEX IF NOT EXISTS idx_news_score ON {schema}.news_articles(score);""",
 
-    CREATE TABLE IF NOT EXISTS breaking_events (
-        id UUID PRIMARY KEY,
-        event_title VARCHAR(512) NOT NULL,
-        summary TEXT,
-        category VARCHAR(100),
-        impact_score INT DEFAULT 0,
-        ragflow_id VARCHAR(100),
-        pushed BOOLEAN DEFAULT FALSE,
-        story_id UUID REFERENCES breaking_stories(id) ON DELETE SET NULL,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_be_score ON breaking_events(impact_score);
-    CREATE INDEX IF NOT EXISTS idx_be_cat ON breaking_events(category);
-    CREATE INDEX IF NOT EXISTS idx_be_story ON breaking_events(story_id);
-    
-        CREATE TABLE IF NOT EXISTS event_stream_mapping (
-            id UUID PRIMARY KEY,
-            event_id UUID REFERENCES breaking_events(id) ON DELETE CASCADE,
-            stream_id UUID REFERENCES breaking_stream_raw(id) ON DELETE CASCADE,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
+            f"""CREATE TABLE IF NOT EXISTS {schema}.rss_sources (
+                id UUID PRIMARY KEY,
+                url TEXT UNIQUE NOT NULL,
+                name VARCHAR(255),
+                enabled BOOLEAN DEFAULT TRUE,
+                fail_count INT DEFAULT 0,
+                last_error TEXT,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_rss_enabled ON {schema}.rss_sources(enabled);""",
 
-        -- Twitter Ingestion Module Tables
-        CREATE TABLE IF NOT EXISTS twitter_accounts (
-            id UUID PRIMARY KEY,
-            username VARCHAR(100) UNIQUE NOT NULL,
-            auth_token TEXT NOT NULL,
-            ct0 TEXT NOT NULL,
-            status VARCHAR(20) DEFAULT 'active',
-            last_error TEXT,
-            last_used_at TIMESTAMP,
-            fail_count INT DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_twitter_accounts_status ON twitter_accounts(status);
+            f"""CREATE TABLE IF NOT EXISTS {schema}.breaking_rss_sources (
+                id UUID PRIMARY KEY,
+                url VARCHAR(512) UNIQUE NOT NULL,
+                name VARCHAR(100),
+                platform VARCHAR(50) NOT NULL,
+                enabled BOOLEAN DEFAULT TRUE,
+                fail_count INT DEFAULT 0,
+                success_count INT DEFAULT 0,
+                last_error TEXT,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_brss_url ON {schema}.breaking_rss_sources(url);
+            CREATE INDEX IF NOT EXISTS idx_brss_enabled ON {schema}.breaking_rss_sources(enabled);""",
 
-        CREATE TABLE IF NOT EXISTS twitter_monitored_users (
-            rest_id VARCHAR(50) PRIMARY KEY,
-            screen_name VARCHAR(100) UNIQUE NOT NULL,
-            is_active BOOLEAN DEFAULT TRUE,
-            category VARCHAR(50),
-            last_seen_tweet_id VARCHAR(50) DEFAULT '0',
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_twitter_monitored_active ON twitter_monitored_users(is_active);
+            f"""CREATE TABLE IF NOT EXISTS {schema}.breaking_stream_raw (
+                id UUID PRIMARY KEY,
+                source_platform VARCHAR(100) NOT NULL,
+                source_url TEXT UNIQUE NOT NULL,
+                raw_text TEXT NOT NULL,
+                author VARCHAR(255),
+                publish_time TIMESTAMP,
+                status SMALLINT DEFAULT 0,
+                kg_processed BOOLEAN DEFAULT FALSE,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_bsr_status ON {schema}.breaking_stream_raw(status);
+            CREATE INDEX IF NOT EXISTS idx_bsr_platform ON {schema}.breaking_stream_raw(source_platform);
+            CREATE INDEX IF NOT EXISTS idx_bsr_pub_time ON {schema}.breaking_stream_raw(publish_time);""",
 
-        CREATE TABLE IF NOT EXISTS twitter_stream_raw (
-            id UUID PRIMARY KEY,
-            tweet_id VARCHAR(50) UNIQUE NOT NULL,
-            author_screen_name VARCHAR(100),
-            raw_text TEXT NOT NULL,
-            is_reply BOOLEAN DEFAULT FALSE,
-            reply_to_tweet_id VARCHAR(50),
-            metadata JSONB,
-            status SMALLINT DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_twitter_stream_id ON twitter_stream_raw(tweet_id);
-        created_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_esm_event ON event_stream_mapping(event_id);
-    CREATE INDEX IF NOT EXISTS idx_esm_stream ON event_stream_mapping(stream_id);
+            f"""CREATE TABLE IF NOT EXISTS {schema}.breaking_stories (
+                id UUID PRIMARY KEY,
+                story_title VARCHAR(512) NOT NULL,
+                story_summary TEXT,
+                category VARCHAR(100),
+                peak_score INT DEFAULT 0,
+                source_count INT DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'developing',
+                pushed BOOLEAN DEFAULT FALSE,
+                push_count INT DEFAULT 0,
+                last_pushed_at TIMESTAMP,
+                last_pushed_score INT DEFAULT 0,
+                "created_at" TIMESTAMP DEFAULT NOW(),
+                "updated_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_stories_score ON {schema}.breaking_stories(peak_score);
+            CREATE INDEX IF NOT EXISTS idx_stories_status ON {schema}.breaking_stories(status);""",
 
-        -- LLM Model Management Table
-        CREATE TABLE IF NOT EXISTS llm_models (
-            id UUID PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            base_url TEXT NOT NULL,
-            api_key TEXT NOT NULL,
-            model_name VARCHAR(100) NOT NULL,
-            priority INT DEFAULT 0,
-            fail_count INT DEFAULT 0,
-            is_active BOOLEAN DEFAULT TRUE,
-            last_error TEXT,
-            last_success TIMESTAMP,
-            input_price_per_m DECIMAL(10, 2) DEFAULT 7.0,
-            output_price_per_m DECIMAL(10, 2) DEFAULT 7.0,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_llm_active ON llm_models(is_active);
-        CREATE INDEX IF NOT EXISTS idx_llm_priority ON llm_models(priority);
+            f"""CREATE TABLE IF NOT EXISTS {schema}.breaking_events (
+                id UUID PRIMARY KEY,
+                event_title VARCHAR(512) NOT NULL,
+                summary TEXT,
+                category VARCHAR(100),
+                impact_score INT DEFAULT 0,
+                ragflow_id VARCHAR(100),
+                pushed BOOLEAN DEFAULT FALSE,
+                story_id UUID REFERENCES {schema}.breaking_stories(id) ON DELETE SET NULL,
+                "created_at" TIMESTAMP DEFAULT NOW(),
+                "updated_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_be_score ON {schema}.breaking_events(impact_score);
+            CREATE INDEX IF NOT EXISTS idx_be_cat ON {schema}.breaking_events(category);
+            CREATE INDEX IF NOT EXISTS idx_be_story ON {schema}.breaking_events(story_id);""",
 
-        -- Token Usage Tracking Table
-        CREATE TABLE IF NOT EXISTS token_usage (
-            id UUID PRIMARY KEY,
-            service_name VARCHAR(100) NOT NULL,
-            model_name VARCHAR(100) NOT NULL,
-            prompt_tokens INT DEFAULT 0,
-            completion_tokens INT DEFAULT 0,
-            cached_tokens INT DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_tu_service ON token_usage(service_name);
-        CREATE INDEX IF NOT EXISTS idx_tu_model ON token_usage(model_name);
-        CREATE INDEX IF NOT EXISTS idx_tu_date ON token_usage(created_at);
+            f"""CREATE TABLE IF NOT EXISTS {schema}.event_stream_mapping (
+                id UUID PRIMARY KEY,
+                event_id UUID REFERENCES {schema}.breaking_events(id) ON DELETE CASCADE,
+                stream_id UUID REFERENCES {schema}.breaking_stream_raw(id) ON DELETE CASCADE,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_esm_event ON {schema}.event_stream_mapping(event_id);
+            CREATE INDEX IF NOT EXISTS idx_esm_stream ON {schema}.event_stream_mapping(stream_id);""",
 
-        -- System Configuration Table (for dynamic config management)
-        CREATE TABLE IF NOT EXISTS system_config (
-            id UUID PRIMARY KEY,
-            section VARCHAR(50) NOT NULL,
-            key VARCHAR(100) NOT NULL,
-            value TEXT,
-            value_type VARCHAR(20) DEFAULT 'string',
-            description VARCHAR(255),
-            is_editable BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(section, key)
-        );
-        CREATE INDEX IF NOT EXISTS idx_sys_config_section ON system_config(section);
-        """
+            f"""CREATE TABLE IF NOT EXISTS {schema}.twitter_accounts (
+                id UUID PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                auth_token TEXT NOT NULL,
+                ct0 TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'active',
+                last_error TEXT,
+                last_used_at TIMESTAMP,
+                fail_count INT DEFAULT 0,
+                "created_at" TIMESTAMP DEFAULT NOW(),
+                account_label VARCHAR(50),
+                last_active_at TIMESTAMP,
+                proxy_url TEXT,
+                cooled_until TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_twitter_accounts_status ON {schema}.twitter_accounts(status);""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.twitter_monitored_users (
+                rest_id VARCHAR(50) PRIMARY KEY,
+                screen_name VARCHAR(100) UNIQUE NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                category VARCHAR(50),
+                last_seen_tweet_id VARCHAR(50) DEFAULT '0',
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_twitter_monitored_active ON {schema}.twitter_monitored_users(is_active);""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.twitter_stream_raw (
+                id UUID PRIMARY KEY,
+                tweet_id VARCHAR(50) UNIQUE NOT NULL,
+                author_screen_name VARCHAR(100),
+                raw_text TEXT NOT NULL,
+                is_reply BOOLEAN DEFAULT FALSE,
+                reply_to_tweet_id VARCHAR(50),
+                metadata JSONB,
+                status SMALLINT DEFAULT 0,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_twitter_stream_id ON {schema}.twitter_stream_raw(tweet_id);""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.llm_models (
+                id UUID PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                base_url TEXT NOT NULL,
+                api_key TEXT NOT NULL,
+                model_name VARCHAR(100) NOT NULL,
+                priority INT DEFAULT 0,
+                fail_count INT DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                last_error TEXT,
+                last_success TIMESTAMP,
+                input_price_per_m DECIMAL(10, 2) DEFAULT 7.0,
+                output_price_per_m DECIMAL(10, 2) DEFAULT 7.0,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_llm_active ON {schema}.llm_models(is_active);
+            CREATE INDEX IF NOT EXISTS idx_llm_priority ON {schema}.llm_models(priority);""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.token_usage (
+                id UUID PRIMARY KEY,
+                service_name VARCHAR(100) NOT NULL,
+                model_name VARCHAR(100) NOT NULL,
+                prompt_tokens INT DEFAULT 0,
+                completion_tokens INT DEFAULT 0,
+                cached_tokens INT DEFAULT 0,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_tu_service ON {schema}.token_usage(service_name);
+            CREATE INDEX IF NOT EXISTS idx_tu_model ON {schema}.token_usage(model_name);
+            CREATE INDEX IF NOT EXISTS idx_tu_date ON {schema}.token_usage("created_at");""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.system_config (
+                id UUID PRIMARY KEY,
+                section VARCHAR(50) NOT NULL,
+                key VARCHAR(100) NOT NULL,
+                value TEXT,
+                value_type VARCHAR(20) DEFAULT 'string',
+                description VARCHAR(255),
+                is_editable BOOLEAN DEFAULT TRUE,
+                "created_at" TIMESTAMP DEFAULT NOW(),
+                "updated_at" TIMESTAMP DEFAULT NOW(),
+                UNIQUE(section, key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_sys_config_section ON {schema}.system_config(section);""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.twitter_events (
+                id UUID PRIMARY KEY,
+                event_title VARCHAR(512) NOT NULL,
+                summary TEXT,
+                category VARCHAR(100),
+                peak_score INT DEFAULT 0,
+                source_count INT DEFAULT 0,
+                first_tweet_id VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'active',
+                pushed BOOLEAN DEFAULT FALSE,
+                "created_at" TIMESTAMP DEFAULT NOW(),
+                "updated_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_te_score ON {schema}.twitter_events(peak_score);
+            CREATE INDEX IF NOT EXISTS idx_te_status ON {schema}.twitter_events(status);
+            CREATE INDEX IF NOT EXISTS idx_te_created ON {schema}.twitter_events("created_at");""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.twitter_event_tweet_mapping (
+                id UUID PRIMARY KEY,
+                event_id UUID REFERENCES {schema}.twitter_events(id) ON DELETE CASCADE,
+                tweet_id VARCHAR(50),
+                author_screen_name VARCHAR(100),
+                "created_at" TIMESTAMP DEFAULT NOW(),
+                UNIQUE(event_id, tweet_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_tetm_event ON {schema}.twitter_event_tweet_mapping(event_id);
+            CREATE INDEX IF NOT EXISTS idx_tetm_tweet ON {schema}.twitter_event_tweet_mapping(tweet_id);""",
+        ]
         try:
-            # Execute the DDL query and commit the transaction
-            # 执行 DDL 查询并提交事务
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(query)
+                    for query in queries:
+                        cur.execute(query)
                 conn.commit()
-            logger.info("Database initialized successfully.")
+            logger.info("Database initialized successfully under omnidigest schema.")
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise
 
     def create_api_keys_table(self):
         """
-        Creates the 'api_keys' table if it does not exist.
-        如果 'api_keys' 表不存在则创建它。
+        Creates the 'api_keys' table if it does not exist under omnidigest schema.
+        如果 'api_keys' 表不存在则在 omnidigest schema 下创建它。
         """
         query = """
-        CREATE TABLE IF NOT EXISTS api_keys (
+        CREATE TABLE IF NOT EXISTS omnidigest.api_keys (
             id SERIAL PRIMARY KEY,
             client_name VARCHAR(100) UNIQUE NOT NULL,
             key_hash VARCHAR(255) NOT NULL,
             is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT NOW()
+            "created_at" TIMESTAMP DEFAULT NOW()
         );
-        CREATE INDEX IF NOT EXISTS idx_api_keys_client ON api_keys(client_name);
+        CREATE INDEX IF NOT EXISTS idx_api_keys_client ON omnidigest.api_keys(client_name);
         """
         try:
             with self._get_connection() as conn:
@@ -510,9 +543,9 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
         """
         query = """
         SELECT id, name, base_url, api_key, model_name, priority, fail_count, input_price_per_m, output_price_per_m
-        FROM llm_models
+        FROM omnidigest.llm_models
         WHERE is_active = TRUE
-        ORDER BY priority DESC, created_at ASC
+        ORDER BY priority DESC, "created_at" ASC
         """
         try:
             with self._get_connection() as conn:
@@ -534,7 +567,7 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
         """
         logger.info(f"Incrementing failure count for LLM: {name}")
         query = """
-        UPDATE llm_models 
+        UPDATE omnidigest.llm_models
         SET fail_count = fail_count + 1, last_error = %s
         WHERE name = %s
         RETURNING fail_count
@@ -545,7 +578,7 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
                     cur.execute(query, (error, name))
                     result = cur.fetchone()
                     if result and result[0] >= threshold:
-                        cur.execute("UPDATE llm_models SET is_active = FALSE WHERE name = %s", (name,))
+                        cur.execute("UPDATE omnidigest.llm_models SET is_active = FALSE WHERE name = %s", (name,))
                         logger.warning(f"LLM Model {name} deactivated due to {result[0]} consecutive failures.")
                 conn.commit()
         except Exception as e:
@@ -560,7 +593,7 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             name (str): The name of the LLM model to reset. / 要重置的大语言模型名称。
         """
         query = """
-        UPDATE llm_models 
+        UPDATE omnidigest.llm_models
         SET fail_count = 0, last_success = NOW(), last_error = NULL
         WHERE name = %s
         """
@@ -587,7 +620,7 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             output_price_per_m (float): Output price per million tokens (RMB). / 每百万输出 token 的人民币价格。
         """
         query = """
-        INSERT INTO llm_models (id, name, base_url, api_key, model_name, priority, input_price_per_m, output_price_per_m)
+        INSERT INTO omnidigest.llm_models (id, name, base_url, api_key, model_name, priority, input_price_per_m, output_price_per_m)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id) DO NOTHING
         """
@@ -619,7 +652,7 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             cached_tokens (int): Count of cached tokens (from API response). / 缓存 token 数量（来自 API 响应）。
         """
         query = """
-        INSERT INTO token_usage (id, service_name, model_name, prompt_tokens, completion_tokens, cached_tokens)
+        INSERT INTO omnidigest.token_usage (id, service_name, model_name, prompt_tokens, completion_tokens, cached_tokens)
         VALUES (%s, %s, %s, %s, %s, %s)
         """
         try:
@@ -642,12 +675,12 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             list[dict]: Summary of token usage counts. / token 使用计数汇总。
         """
         query = """
-        SELECT service_name, model_name, 
-               CAST(SUM(prompt_tokens) AS INTEGER) as total_prompt, 
+        SELECT service_name, model_name,
+               CAST(SUM(prompt_tokens) AS INTEGER) as total_prompt,
                CAST(SUM(completion_tokens) AS INTEGER) as total_completion,
                CAST(COUNT(*) AS INTEGER) as total_requests
-        FROM token_usage
-        WHERE created_at >= NOW() - INTERVAL '1 day' * %s
+        FROM omnidigest.token_usage
+        WHERE "created_at" >= NOW() - INTERVAL '1 day' * %s
         GROUP BY service_name, model_name
         ORDER BY service_name, model_name
         """
@@ -673,8 +706,8 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             list[dict]: List of config entries as dictionaries. / 配置条目字典列表。
         """
         query = """
-        SELECT id, section, key, value, value_type, description, is_editable, created_at, updated_at
-        FROM system_config
+        SELECT id, section, key, value, value_type, description, is_editable, "created_at", "updated_at"
+        FROM omnidigest.system_config
         ORDER BY section, key
         """
         try:
@@ -698,8 +731,8 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             list[dict]: List of config entries as dictionaries. / 配置条目字典列表。
         """
         query = """
-        SELECT id, section, key, value, value_type, description, is_editable, created_at, updated_at
-        FROM system_config
+        SELECT id, section, key, value, value_type, description, is_editable, "created_at", "updated_at"
+        FROM omnidigest.system_config
         WHERE section = %s
         ORDER BY key
         """
@@ -725,8 +758,8 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             dict | None: Config entry as dictionary, or None if not found. / 配置条目字典，未找到返回 None。
         """
         query = """
-        SELECT id, section, key, value, value_type, description, is_editable, created_at, updated_at
-        FROM system_config
+        SELECT id, section, key, value, value_type, description, is_editable, "created_at", "updated_at"
+        FROM omnidigest.system_config
         WHERE section = %s AND key = %s
         """
         try:
@@ -755,14 +788,14 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             bool: True if successful. / 成功返回 True。
         """
         query = """
-        INSERT INTO system_config (id, section, key, value, value_type, description, is_editable, updated_at)
+        INSERT INTO omnidigest.system_config (id, section, key, value, value_type, description, is_editable, "updated_at")
         VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
         ON CONFLICT (section, key) DO UPDATE SET
             value = EXCLUDED.value,
             value_type = EXCLUDED.value_type,
             description = EXCLUDED.description,
             is_editable = EXCLUDED.is_editable,
-            updated_at = NOW()
+            "updated_at" = NOW()
         """
         try:
             import uuid
@@ -788,7 +821,7 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             bool: True if successful. / 成功返回 True。
         """
         query = """
-        DELETE FROM system_config WHERE section = %s AND key = %s
+        DELETE FROM omnidigest.system_config WHERE section = %s AND key = %s
         """
         try:
             with self._get_connection() as conn:

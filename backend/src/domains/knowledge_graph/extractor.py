@@ -102,13 +102,13 @@ class KGExtractor:
             SELECT
                 e.id AS event_id, e.event_title, e.summary, e.category,
                 r.id AS stream_id, r.raw_text, r.source_platform, r.publish_time
-            FROM breaking_events e
-            JOIN event_stream_mapping m ON m.event_id = e.id
-            JOIN breaking_stream_raw r ON r.id = m.stream_id
+            FROM omnidigest.breaking_events e
+            JOIN omnidigest.event_stream_mapping m ON m.event_id = e.id
+            JOIN omnidigest.breaking_stream_raw r ON r.id = m.stream_id
             WHERE r.kg_processed = FALSE
               AND r.status = 1  -- Only process streams that breaking_processor has completed
-              AND r.created_at > NOW() - INTERVAL '1 hour' * %s
-            ORDER BY r.created_at DESC
+              AND r."created_at" > NOW() - INTERVAL '1 hour' * %s
+            ORDER BY r."created_at" DESC
         """
         try:
             with self.db._get_connection() as conn:
@@ -125,7 +125,7 @@ class KGExtractor:
         Marks a stream as processed for KG in PostgreSQL.
         在 PostgreSQL 中将流标记为已进行 KG 处理。
         """
-        query = "UPDATE breaking_stream_raw SET kg_processed = TRUE WHERE id = %s"
+        query = "UPDATE omnidigest.breaking_stream_raw SET kg_processed = TRUE WHERE id = %s"
         try:
             with self.db._get_connection() as conn:
                 with conn.cursor() as cur:

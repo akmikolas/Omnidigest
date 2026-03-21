@@ -44,16 +44,16 @@ def test_breaking(args):
             with conn.cursor() as cur:
                 # 1. Clear mappings first to avoid FK constraint issues
                 cur.execute("""
-                    DELETE FROM event_stream_mapping WHERE stream_id IN (
-                        SELECT id FROM breaking_stream_raw WHERE raw_text LIKE '%%[TEST]%%'
+                    DELETE FROM omnidigest.event_stream_mapping WHERE stream_id IN (
+                        SELECT id FROM omnidigest.breaking_stream_raw WHERE raw_text LIKE '%%[TEST]%%'
                     )
                 """)
                 # 2. Delete events linked to TEST streams
                 cur.execute("""
-                    DELETE FROM breaking_events WHERE id IN (
-                        SELECT e.id FROM breaking_events e
-                        JOIN event_stream_mapping m ON m.event_id = e.id
-                        JOIN breaking_stream_raw r ON r.id = m.stream_id
+                    DELETE FROM omnidigest.breaking_events WHERE id IN (
+                        SELECT e.id FROM omnidigest.breaking_events e
+                        JOIN omnidigest.event_stream_mapping m ON m.event_id = e.id
+                        JOIN omnidigest.breaking_stream_raw r ON r.id = m.stream_id
                         WHERE r.raw_text LIKE '%%[TEST]%%'
                     ) OR event_title LIKE '%%[TEST]%%'
                 """)
@@ -61,15 +61,15 @@ def test_breaking(args):
                 # Note: This might still leave stories if they have multiple events, some not being TEST events.
                 # But for tests, usually everything is TEST-related.
                 cur.execute("""
-                    DELETE FROM breaking_stories WHERE story_title LIKE '%%[TEST]%%'
+                    DELETE FROM omnidigest.breaking_stories WHERE story_title LIKE '%%[TEST]%%'
                 """)
                 # Also delete stories that no longer have events
                 cur.execute("""
-                    DELETE FROM breaking_stories WHERE id NOT IN (SELECT DISTINCT story_id FROM breaking_events WHERE story_id IS NOT NULL)
-                    AND (story_title LIKE '%%[TEST]%%' OR created_at > NOW() - INTERVAL '1 hour')
+                    DELETE FROM omnidigest.breaking_stories WHERE id NOT IN (SELECT DISTINCT story_id FROM omnidigest.breaking_events WHERE story_id IS NOT NULL)
+                    AND (story_title LIKE '%%[TEST]%%' OR "created_at" > NOW() - INTERVAL '1 hour')
                 """)
                 # 4. Finally delete raw streams
-                cur.execute("DELETE FROM breaking_stream_raw WHERE raw_text LIKE '%%[TEST]%%'")
+                cur.execute("DELETE FROM omnidigest.breaking_stream_raw WHERE raw_text LIKE '%%[TEST]%%'")
             conn.commit()
         logger.info("✅ Deep cleanup successful.")
     except Exception as e:
@@ -93,7 +93,7 @@ def test_breaking(args):
 
     logger.info(f"1. Injecting 2 different raw streams with Test Tag [{test_id}]...")
     query = """
-    INSERT INTO breaking_stream_raw (id, source_platform, source_url, raw_text, status)
+    INSERT INTO omnidigest.breaking_stream_raw (id, source_platform, source_url, raw_text, status)
     VALUES (%s, %s, %s, %s, 0)
     """
     try:
@@ -120,12 +120,12 @@ def test_breaking(args):
         with conn.cursor() as cur:
             # We look up based on the stream IDs we just injected and processed
             cur.execute("""
-                SELECT s.id, s.story_title, s.category, s.peak_score, s.source_count, s.status, e.event_title 
-                FROM breaking_stories s
-                JOIN breaking_events e ON e.story_id = s.id
-                JOIN event_stream_mapping m ON m.event_id = e.id
+                SELECT s.id, s.story_title, s.category, s.peak_score, s.source_count, s.status, e.event_title
+                FROM omnidigest.breaking_stories s
+                JOIN omnidigest.breaking_events e ON e.story_id = s.id
+                JOIN omnidigest.event_stream_mapping m ON m.event_id = e.id
                 WHERE m.stream_id = %s OR m.stream_id = %s
-                ORDER BY s.created_at DESC
+                ORDER BY s."created_at" DESC
                 LIMIT 2
             """, (stream1["id"], stream2["id"]))
             rows = cur.fetchall()
