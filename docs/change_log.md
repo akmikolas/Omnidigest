@@ -2,6 +2,23 @@
 
 OmniDigest Change Log. All notable changes to this project will be documented in this file.
 
+## v2.3.14 (2026-03-21)
+- **通知模块模块化重构**:
+    - 新增 `notifications/channels/base.py` - 定义 `NotificationChannel` 抽象基类和 `SendResult` 数据类
+    - 新增 `notifications/channels/telegram.py` - Telegram 渠道适配器
+    - 新增 `notifications/channels/dingtalk.py` - 钉钉渠道适配器
+    - 新增 `notifications/manager.py` - 统一通知管理器 `NotificationManager`
+    - 保留 `notifications/pusher.py` 作为向后兼容的 Facade
+
+- **AStockAlertService Bug 修复**:
+    - 修复 `_send_dingtalk` 方法中调用已废弃的 `dingtalk_webhook` 属性问题
+    - 迁移到新的 `NotificationManager` API
+
+- **文档更新**:
+    - 新增 `docs/notification_module_design.md` - 通知模块架构设计文档
+    - 新增 `docs/wechat_webhook_api.md` - 微信 Webhook API 规范
+    - 新增 `docs/migration_plan.md` - 重构迁移计划
+
 ## v2.2.1 (2026-03-16)
 - **App 图标和 Favicon**:
     - 新增 SVG favicon 和 ICO 格式，兼容各浏览器。

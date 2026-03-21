@@ -232,18 +232,14 @@ class AStockAlertService:
     async def _send_dingtalk(self, title: str, summary: str, anomalies: List[Dict]):
         """发送到钉钉"""
         try:
-            # 调用 NotificationService 的同步方法
-            from ..notifications.pusher import NotificationService
-            pusher = NotificationService()
-            # 获取配置的机器人并发送
-            for robot in pusher.robots:
-                if getattr(robot, 'enable_dingtalk', True):
-                    pusher._send_one_dingtalk(
-                        robot.dingtalk_webhook,
-                        getattr(robot, 'dingtalk_secret', ''),
-                        title,
-                        summary
-                    )
+            from ..notifications import NotificationManager
+            manager = NotificationManager()
+            # Send to all DingTalk channels
+            await manager.send_message(
+                summary,
+                channels=["dingtalk"],
+                title=title
+            )
             logger.info(f"Sent DingTalk alert for {len(anomalies)} anomalies")
 
         except Exception as e:
@@ -252,11 +248,13 @@ class AStockAlertService:
     async def _send_telegram(self, title: str, summary: str, anomalies: List[Dict]):
         """发送到 Telegram"""
         try:
-            # 调用 NotificationService 的同步方法
-            from ..notifications.pusher import NotificationService
-            pusher = NotificationService()
-            # 发送 Telegram
-            pusher.send_telegram(f"*{title}*\n\n{summary}")
+            from ..notifications import NotificationManager
+            manager = NotificationManager()
+            # Send to all Telegram channels
+            await manager.send_message(
+                f"*{title}*\n\n{summary}",
+                channels=["telegram"]
+            )
             logger.info(f"Sent Telegram alert for {len(anomalies)} anomalies")
 
         except Exception as e:
