@@ -252,7 +252,7 @@ async def get_token_stats_by_range(start_date: str = None, end_date: str = None,
                             SUM(completion_tokens) as total_completion,
                             SUM(cached_tokens) as cached_tokens
                         FROM token_usage
-                        WHERE created_at > NOW() - INTERVAL '%s' hours
+                        WHERE created_at > NOW() - ('%s hours')::interval
                         GROUP BY service_name, model_name
                         ORDER BY service_name, model_name
                     """, (hours,))
@@ -351,7 +351,7 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
                         service_name,
                         SUM(prompt_tokens + completion_tokens) as total_tokens
                     FROM token_usage
-                    WHERE created_at > NOW() - INTERVAL '%s' hours
+                    WHERE created_at > NOW() - ('%s hours')::interval
                     GROUP BY time_bucket, service_name
                     ORDER BY time_bucket, service_name
                 """, (hours,))
@@ -852,7 +852,7 @@ async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str
             time_condition = "u.created_at >= %s AND u.created_at < %s"
             time_params = (start_date, end_date + ' 23:59:59')
         elif hours:
-            time_condition = "u.created_at > NOW() - INTERVAL '%s' hours"
+            time_condition = "u.created_at > NOW() - ('%s hours')::interval"
             time_params = (hours,)
         else:
             time_condition = "u.created_at > NOW() - INTERVAL '168 hours'"
@@ -2132,7 +2132,7 @@ async def get_astock_news(limit: int = 20, hours: int = 24):
                 query = """
                 SELECT id, title, content, source_url, source_name, publish_time
                 FROM news_articles
-                WHERE publish_time > CURRENT_TIMESTAMP - INTERVAL '%s' hours
+                WHERE publish_time > CURRENT_TIMESTAMP - ('%s hours')::interval
                   AND (
                     title ILIKE '%%A股%%' OR title ILIKE '%%股市%%' OR title ILIKE '%%大盘%%'
                     OR title ILIKE '%%指数%%' OR title ILIKE '%%上证%%' OR title ILIKE '%%深证%%'
@@ -2170,7 +2170,7 @@ async def get_astock_news(limit: int = 20, hours: int = 24):
                     query2 = """
                     SELECT id, raw_text as content, author as source_name, publish_time
                     FROM breaking_stream_raw
-                    WHERE publish_time > CURRENT_TIMESTAMP - INTERVAL '%s' hours
+                    WHERE publish_time > CURRENT_TIMESTAMP - ('%s hours')::interval
                       AND (
                         raw_text ILIKE '%%A股%%' OR raw_text ILIKE '%%股市%%' OR raw_text ILIKE '%%大盘%%'
                         OR raw_text ILIKE '%%指数%%' OR raw_text ILIKE '%%宏观%%'
