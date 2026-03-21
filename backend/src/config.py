@@ -277,6 +277,14 @@ class Settings(BaseSettings):
     astock_alert_push_dingtalk: bool = Field(default=True, env="ASTOCK_ALERT_PUSH_DINGTALK")
 
     # ==========================
+    # External LLM Configuration
+    # 外部大语言模型配置
+    # ==========================
+    llm_api_key: str = Field(default="", env="LLM_API_KEY")
+    llm_base_url: str = Field(default="https://api.openai.com/v1", env="LLM_BASE_URL")
+    llm_model_name: str = Field(default="gpt-4o-mini", env="LLM_MODEL_NAME")
+
+    # ==========================
     # Redis Cache Configuration
     # Redis 缓存配置
     # ==========================

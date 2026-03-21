@@ -7,7 +7,6 @@ import logging
 import asyncio
 import json
 import re
-import threading
 import instructor
 from openai import AsyncOpenAI
 from httpx import AsyncClient, Timeout
@@ -33,7 +32,7 @@ class LLMManager:
         self._current_model = None
         self._client = None
         self._http_client = None
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     async def close(self):
         """
@@ -126,7 +125,7 @@ class LLMManager:
         Returns the current client and model metadata. Refreshes if needed or if current is excluded.
         返回当前的客户端和模型元数据。如果需要或当前模型被排除，则刷新。
         """
-        with self._lock:
+        async with self._lock:
             # Refresh if no client exists OR if the current model is in exclude_ids
             if not self._client or (self._current_model and str(self._current_model.get('id')) in (exclude_ids or [])):
                 await self._refresh_client(exclude_ids=exclude_ids)
@@ -220,10 +219,10 @@ class LLMManager:
                     excluded_ids.add(str(model_id))
                 
                 # Invalidate client and model to force a switch on next attempt
-                with self._lock:
+                async with self._lock:
                     self._client = None
                     self._current_model = None
-                
+
                 if attempt < max_attempts - 1:
                     logger.info(f"Retrying structured LLM completion (Attempt {attempt + 2}/{max_attempts})...")
                     await asyncio.sleep(1)
@@ -302,10 +301,10 @@ class LLMManager:
                     excluded_ids.add(str(model_id))
                 
                 # Invalidate client and model to force a switch on next attempt
-                with self._lock:
+                async with self._lock:
                     self._client = None
                     self._current_model = None
-                
+
                 if attempt < max_attempts - 1:
                     logger.info(f"Retrying LLM completion (Attempt {attempt + 2}/{max_attempts})...")
                     await asyncio.sleep(1) # Brief pause before retry
