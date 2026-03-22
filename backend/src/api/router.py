@@ -186,7 +186,6 @@ async def health_check():
     """
     return {"status": "ok", "scheduler_running": scheduler.running}
 
-@cached_endpoint("token:stats", ttl=300)
 @router.get("/token-stats", dependencies=[Depends(verify_api_key)])
 async def get_token_stats(days: int = 30):
     """
@@ -205,12 +204,18 @@ async def get_token_stats(days: int = 30):
     if days < 1 or days > 365:
         return {"error": "Days must be between 1 and 365"}
 
+    cache_key = f"omnidigest:token:stats:days={days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     db = get_db()
     stats = await asyncio.to_thread(db.get_token_usage_stats, days=days)
-    return {"status": "ok", "days": days, "stats": stats}
+    result = {"status": "ok", "days": days, "stats": stats}
+    cache.set(cache_key, result, ttl=300)
+    return result
 
 
-@cached_endpoint("token:stats:range", ttl=300)
 @router.get("/token-stats/range", dependencies=[Depends(verify_api_key)])
 async def get_token_stats_by_range(start_date: str = None, end_date: str = None, hours: int = None):
     """
@@ -303,7 +308,6 @@ async def get_token_stats_by_range(start_date: str = None, end_date: str = None,
     return result
 
 
-@cached_endpoint("token:stats:timeline", ttl=300)
 @router.get("/token-stats/timeline", dependencies=[Depends(verify_api_key)])
 async def get_token_stats_timeline(start_date: str = None, end_date: str = None, hours: int = None):
     """
@@ -632,7 +636,6 @@ async def get_stats_overview():
     return result
 
 
-@cached_endpoint("stats:articles", ttl=60)
 @router.get("/stats/articles", dependencies=[Depends(verify_api_key)])
 async def get_article_stats(days: int = 7):
     """
@@ -648,12 +651,13 @@ async def get_article_stats(days: int = 7):
     if days < 1 or days > 90:
         return {"error": "Days must be between 1 and 90"}
 
+    cache_key = f"omnidigest:stats:articles:days={days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     db = get_db()
 
-    """
-    Query article statistics including category distribution, score distribution, and daily trend.
-    查询文章统计数据，包括分类分布、分数分布和每日趋势。
-    """
     def get_stats():
         with db._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -691,10 +695,11 @@ async def get_article_stats(days: int = 7):
                 return {"categories": categories, "score_distribution": score_dist, "daily_trend": trend}
 
     result = await asyncio.to_thread(get_stats)
-    return {"status": "ok", "days": days, "stats": result}
+    result = {"status": "ok", "days": days, "stats": result}
+    cache.set(cache_key, result, ttl=60)
+    return result
 
 
-@cached_endpoint("stats:breaking", ttl=30)
 @router.get("/stats/breaking", dependencies=[Depends(verify_api_key)])
 async def get_breaking_stats(days: int = 7):
     """
@@ -710,12 +715,13 @@ async def get_breaking_stats(days: int = 7):
     if days < 1 or days > 90:
         return {"error": "Days must be between 1 and 90"}
 
+    cache_key = f"omnidigest:stats:breaking:days={days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     db = get_db()
 
-    """
-    Query breaking news statistics including recent events, active stories, and summary.
-    查询突发新闻统计数据，包括近期事件、活跃故事和摘要。
-    """
     def get_stats():
         with db._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -754,10 +760,11 @@ async def get_breaking_stats(days: int = 7):
                 return {"recent_events": recent_events, "active_stories": stories, "summary": summary}
 
     result = await asyncio.to_thread(get_stats)
-    return {"status": "ok", "days": days, "stats": result}
+    result = {"status": "ok", "days": days, "stats": result}
+    cache.set(cache_key, result, ttl=30)
+    return result
 
 
-@cached_endpoint("stats:twitter", ttl=30)
 @router.get("/stats/twitter", dependencies=[Depends(verify_api_key)])
 async def get_twitter_stats(days: int = 7):
     """
@@ -773,12 +780,13 @@ async def get_twitter_stats(days: int = 7):
     if days < 1 or days > 90:
         return {"error": "Days must be between 1 and 90"}
 
+    cache_key = f"omnidigest:stats:twitter:days={days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     db = get_db()
 
-    """
-    Query Twitter statistics including account status, monitored users, recent events, and summary.
-    查询 Twitter 统计数据，包括账户状态、监控用户、近期事件和摘要。
-    """
     def get_stats():
         with db._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -823,10 +831,11 @@ async def get_twitter_stats(days: int = 7):
                 return {"accounts": accounts, "monitored_users": users, "recent_events": events, "summary": summary}
 
     result = await asyncio.to_thread(get_stats)
-    return {"status": "ok", "days": days, "stats": result}
+    result = {"status": "ok", "days": days, "stats": result}
+    cache.set(cache_key, result, ttl=30)
+    return result
 
 
-@cached_endpoint("stats:llm", ttl=180)
 @router.get("/stats/llm", dependencies=[Depends(verify_api_key)])
 async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str = None):
     """
@@ -840,6 +849,11 @@ async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str
     """
     import asyncio
     from .deps import get_db
+
+    cache_key = f"omnidigest:stats:llm:hours={hours}:start={start_date}:end={end_date}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     db = get_db()
 
@@ -937,7 +951,9 @@ async def get_llm_stats(hours: int = None, start_date: str = None, end_date: str
                 }
 
     result = await asyncio.to_thread(get_stats)
-    return {"status": "ok", "stats": result}
+    result = {"status": "ok", "stats": result}
+    cache.set(cache_key, result, ttl=180)
+    return result
 
 
 # ==========================
@@ -1691,27 +1707,32 @@ async def activate_api_key(client_name: str):
 # Knowledge Graph Endpoints
 # ==========================
 
-@cached_endpoint("kg:status", ttl=60)
 @router.get("/kg/status", dependencies=[Depends(verify_api_key)])
 async def get_kg_status():
     """
     Get Knowledge Graph (Dgraph) status.
     获取知识图谱（Dgraph）状态。
     """
+    cache_key = "omnidigest:kg:status"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     from ..config import settings
 
     enabled = settings.kg_enabled
     dgraph_url = settings.dgraph_alpha_url if hasattr(settings, 'dgraph_alpha_url') else 'localhost:9080'
 
-    return {
+    result = {
         "status": "ok",
         "enabled": enabled,
         "dgraph_url": dgraph_url,
         "message": "Knowledge Graph is enabled" if enabled else "Knowledge Graph is not enabled"
     }
+    cache.set(cache_key, result, ttl=60)
+    return result
 
 
-@cached_endpoint("kg:stats", ttl=60)
 @router.get("/kg/stats", dependencies=[Depends(verify_api_key)])
 async def get_kg_stats():
     """
@@ -1723,15 +1744,16 @@ async def get_kg_stats():
     if not settings.kg_enabled:
         return {"status": "error", "message": "Knowledge Graph is not enabled"}
 
+    cache_key = "omnidigest:kg:stats"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     import asyncio
     from ..domains.knowledge_graph.dgraph_client import DgraphClient
     from .deps import get_db
     from psycopg2.extras import RealDictCursor
 
-    """
-    Query Knowledge Graph statistics from Dgraph and PostgreSQL.
-    从 Dgraph 和 PostgreSQL 查询知识图谱统计信息。
-    """
     def get_stats():
         import logging
         try:
@@ -1821,10 +1843,11 @@ async def get_kg_stats():
     if "error" in stats:
         return {"status": "error", "message": stats["error"], "stats": stats}
 
-    return {"status": "ok", "stats": stats}
+    result = {"status": "ok", "stats": stats}
+    cache.set(cache_key, result, ttl=60)
+    return result
 
 
-@cached_endpoint("kg:entities", ttl=120)
 @router.get("/kg/entities", dependencies=[Depends(verify_api_key)])
 async def search_kg_entities(
     name: str = None,
@@ -1841,6 +1864,11 @@ async def search_kg_entities(
 
     if not settings.kg_enabled:
         return {"status": "error", "message": "Knowledge Graph is not enabled"}
+
+    cache_key = f"omnidigest:kg:entities:name={name}:type={entity_type}:start={start_time}:end={end_time}:limit={limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     import asyncio
     from ..domains.knowledge_graph.dgraph_client import DgraphClient
@@ -1863,10 +1891,11 @@ async def search_kg_entities(
             return []
 
     entities = await asyncio.to_thread(search)
-    return {"status": "ok", "entities": entities, "count": len(entities)}
+    result = {"status": "ok", "entities": entities, "count": len(entities)}
+    cache.set(cache_key, result, ttl=120)
+    return result
 
 
-@cached_endpoint("kg:entity", ttl=120)
 @router.get("/kg/entity/{uid}", dependencies=[Depends(verify_api_key)])
 async def get_kg_entity_details(uid: str):
     """
@@ -1877,6 +1906,11 @@ async def get_kg_entity_details(uid: str):
 
     if not settings.kg_enabled:
         return {"status": "error", "message": "Knowledge Graph is not enabled"}
+
+    cache_key = f"omnidigest:kg:entity:uid={uid}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     import asyncio
     from ..domains.knowledge_graph.dgraph_client import DgraphClient
@@ -1894,11 +1928,13 @@ async def get_kg_entity_details(uid: str):
 
     entity = await asyncio.to_thread(get_details)
     if entity:
-        return {"status": "ok", "entity": entity}
-    return {"status": "error", "message": "Entity not found"}
+        result = {"status": "ok", "entity": entity}
+    else:
+        result = {"status": "error", "message": "Entity not found"}
+    cache.set(cache_key, result, ttl=120)
+    return result
 
 
-@cached_endpoint("kg:relations", ttl=120)
 @router.get("/kg/relations", dependencies=[Depends(verify_api_key)])
 async def get_kg_relations(
     from_uid: str = None,
@@ -1914,6 +1950,11 @@ async def get_kg_relations(
 
     if not settings.kg_enabled:
         return {"status": "error", "message": "Knowledge Graph is not enabled"}
+
+    cache_key = f"omnidigest:kg:relations:from={from_uid}:to={to_uid}:type={relation_type}:limit={limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     import asyncio
     from ..domains.knowledge_graph.dgraph_client import DgraphClient
@@ -1935,10 +1976,11 @@ async def get_kg_relations(
             return []
 
     relations = await asyncio.to_thread(get_relations)
-    return {"status": "ok", "relations": relations, "count": len(relations)}
+    result = {"status": "ok", "relations": relations, "count": len(relations)}
+    cache.set(cache_key, result, ttl=120)
+    return result
 
 
-@cached_endpoint("kg:search", ttl=120)
 @router.get("/kg/search", dependencies=[Depends(verify_api_key)])
 async def search_kg_path(
     start: str,
@@ -1953,6 +1995,11 @@ async def search_kg_path(
 
     if not settings.kg_enabled:
         return {"status": "error", "message": "Knowledge Graph is not enabled"}
+
+    cache_key = f"omnidigest:kg:search:start={start}:end={end}:depth={max_depth}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     import asyncio
     from ..domains.knowledge_graph.dgraph_client import DgraphClient
@@ -1969,7 +2016,9 @@ async def search_kg_path(
             return []
 
     paths = await asyncio.to_thread(search_path)
-    return {"status": "ok", "paths": paths, "count": len(paths)}
+    result = {"status": "ok", "paths": paths, "count": len(paths)}
+    cache.set(cache_key, result, ttl=120)
+    return result
 
 
 # ============================================================================
@@ -1977,7 +2026,6 @@ async def search_kg_path(
 # A-share market data API endpoints
 # ============================================================================
 
-@cached_endpoint("astock:quotes", ttl=300)  # 5分钟缓存
 @router.get("/astock/quotes")
 async def get_astock_quotes():
     """
@@ -2032,7 +2080,6 @@ async def get_astock_quotes():
     return result
 
 
-@cached_endpoint("astock:sectors", ttl=300)  # 5分钟缓存
 @router.get("/astock/sectors")
 async def get_astock_sectors(limit: int = 20):
     """
@@ -2107,13 +2154,17 @@ async def get_astock_sectors(limit: int = 20):
         socket.setdefaulttimeout(default_timeout)  # Restore timeout
 
 
-@cached_endpoint("astock:news", ttl=180)  # 3分钟缓存
 @router.get("/astock/news")
 async def get_astock_news(limit: int = 20, hours: int = 24):
     """
     获取A股相关财经新闻
     Get A-share related financial news
     """
+    cache_key = f"omnidigest:astock:news:limit={limit}:hours={hours}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     from psycopg2.extras import RealDictCursor
     import traceback
 
@@ -2203,23 +2254,26 @@ async def get_astock_news(limit: int = 20, hours: int = 24):
         # 按时间排序
         news_list.sort(key=lambda x: x.get("publish_time") or "", reverse=True)
 
-        return {
-            "news": news_list[:limit],
-            "total": len(news_list)
-        }
+        result = {"news": news_list[:limit], "total": len(news_list)}
+        cache.set(cache_key, result, ttl=180)
+        return result
     except Exception as e:
         logging.error(f"Error fetching astock news: {e}")
         logging.error(traceback.format_exc())
         return {"news": [], "total": 0, "error": str(e)}
 
 
-@cached_endpoint("astock:analysis:latest", ttl=600)  # 10分钟缓存
 @router.get("/astock/analysis/latest")
 async def get_astock_latest_analysis():
     """
     获取最新A股分析结果
     Get latest A-share analysis results
     """
+    cache_key = "omnidigest:astock:analysis:latest"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         analyzer = get_astock_analyzer()
 
@@ -2265,6 +2319,7 @@ async def get_astock_latest_analysis():
                         "prediction_id": str(pred['id'])
                     })
 
+                cache.set(cache_key, result, ttl=600)
                 return result
 
     except Exception as e:
@@ -2272,18 +2327,23 @@ async def get_astock_latest_analysis():
         return {"error": str(e)}
 
 
-@cached_endpoint("astock:accuracy", ttl=600)  # 10分钟缓存
 @router.get("/astock/accuracy")
 async def get_astock_accuracy(days: int = 30):
     """
     获取A股预测准确率统计
     Get A-share prediction accuracy statistics
     """
+    cache_key = f"omnidigest:astock:accuracy:days={days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         analyzer = get_astock_analyzer()
         import asyncio
         stats = await analyzer.get_accuracy_stats(days=days)
 
+        cache.set(cache_key, stats, ttl=600)
         return stats
     except Exception as e:
         logging.error(f"Error fetching accuracy stats: {e}")
@@ -2328,7 +2388,6 @@ async def trigger_astock_analysis(analysis_type: str = "pre_market"):
 # A-share individual stock tracking API
 # ============================================================================
 
-@cached_endpoint("astock:stocks", ttl=180)  # 3分钟缓存
 @router.get("/astock/stocks/{symbol}")
 async def get_stock_quote(symbol: str):
     """
@@ -2338,13 +2397,18 @@ async def get_stock_quote(symbol: str):
     Args:
         symbol: 股票代码 (e.g., sh600519, sz000858)
     """
+    # 标准化股票代码
+    symbol = symbol.lower().strip()
+
+    cache_key = f"omnidigest:astock:stocks:symbol={symbol}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     import akshare as ak
     import pandas as pd
     from datetime import datetime
     from ..domains.analysis.market_data import _disable_proxy, _restore_proxy
-
-    # 标准化股票代码
-    symbol = symbol.lower().strip()
 
     _disable_proxy()
     try:
@@ -2383,7 +2447,7 @@ async def get_stock_quote(symbol: str):
         open_price = safe_float(data.get('今开') or data.get('开盘'))
         prev_close = safe_float(data.get('昨收') or data.get('昨收.1') or data.get('收盘'))
 
-        return {
+        result = {
             "symbol": symbol,
             "name": str(name),
             "price": price,
@@ -2397,6 +2461,8 @@ async def get_stock_quote(symbol: str):
             "prev_close": prev_close,
             "update_time": datetime.now().isoformat()
         }
+        cache.set(cache_key, result, ttl=180)
+        return result
 
     except Exception as e:
         logging.error(f"Error fetching stock quote for {symbol}: {e}")
@@ -2405,7 +2471,6 @@ async def get_stock_quote(symbol: str):
         _restore_proxy()
 
 
-@cached_endpoint("astock:stocks:news", ttl=180)  # 3分钟缓存
 @router.get("/astock/stocks/{symbol}/news")
 async def get_stock_news(symbol: str, limit: int = 10):
     """
@@ -2415,6 +2480,11 @@ async def get_stock_news(symbol: str, limit: int = 10):
     Args:
         symbol: 股票代码 (e.g., sh600519, sz000858)
     """
+    cache_key = f"omnidigest:astock:stocks:news:symbol={symbol}:limit={limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     from psycopg2.extras import RealDictCursor
 
     # 从 symbol 提取股票名称关键词
@@ -2459,19 +2529,20 @@ async def get_stock_news(symbol: str, limit: int = 10):
                         "publish_time": article.get("publish_time").isoformat() if article.get("publish_time") else None
                     })
 
-                return {
+                result = {
                     "symbol": symbol,
                     "keyword": stock_keyword,
                     "news": news_list,
                     "total": len(news_list)
                 }
+                cache.set(cache_key, result, ttl=180)
+                return result
 
     except Exception as e:
         logging.error(f"Error fetching stock news for {symbol}: {e}")
         return {"symbol": symbol, "news": [], "error": str(e)}
 
 
-@cached_endpoint("astock:stocks:predictions", ttl=180)
 @router.get("/astock/stocks/{symbol}/predictions")
 async def get_stock_predictions(symbol: str, days: int = 30):
     """
@@ -2485,12 +2556,19 @@ async def get_stock_predictions(symbol: str, days: int = 30):
         symbol: 股票代码
         days: 回溯天数
     """
+    cache_key = f"omnidigest:astock:stocks:predictions:symbol={symbol}:days={days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     # 目前个股预测功能尚未实现，返回提示信息
-    return {
+    result = {
         "symbol": symbol,
         "predictions": [],
         "message": "个股预测功能开发中，目前仅支持指数级别预测"
     }
+    cache.set(cache_key, result, ttl=180)
+    return result
 
 
 # ============================================================================
@@ -2515,16 +2593,20 @@ async def trigger_alert_check():
         return {"status": "error", "message": str(e)}
 
 
-@cached_endpoint("astock:alert:status", ttl=60)
 @router.get("/astock/alert/status")
 async def get_alert_status():
     """
     获取异常波动告警配置状态
     Get abnormal fluctuation alert configuration status
     """
+    cache_key = "omnidigest:astock:alert:status"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     from ..config import settings
 
-    return {
+    result = {
         "enabled": getattr(settings, 'enable_astock_alert', True),
         "threshold": getattr(settings, 'astock_alert_threshold', 3.0),
         "volume_multiplier": getattr(settings, 'astock_alert_volume_multiplier', 2.0),
@@ -2532,3 +2614,5 @@ async def get_alert_status():
         "push_telegram": getattr(settings, 'astock_alert_push_telegram', True),
         "push_dingtalk": getattr(settings, 'astock_alert_push_dingtalk', True)
     }
+    cache.set(cache_key, result, ttl=60)
+    return result
