@@ -599,7 +599,7 @@ def setup_scheduler():
             'interval',
             seconds=60,  # 60 seconds interval
             id='breaking_alerter_loop',
-            max_instances=2,  # Allow 2 concurrent instances in case check takes longer than interval
+            max_instances=1,  # Prevent duplicate pushes from concurrent instances
             next_run_time=datetime.datetime.now() + timedelta(seconds=10)
         )
 

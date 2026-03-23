@@ -285,7 +285,7 @@ class NotificationManager:
                 loop.run_until_complete(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
         except RuntimeError:
             loop = asyncio.new_event_loop()
-            loop.run_until_complete(self.send_event(event_type, summary_data, title=title))
+            loop.run_until_complete(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
 
     def push_to_telegram(self, summary_data: dict, event_type: str = "daily"):
         """
