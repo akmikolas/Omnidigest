@@ -338,15 +338,16 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
         with db._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 # Determine time granularity based on range
-                if hours and hours <= 24:
-                    # For short ranges, group by hour
+                # < 6 hours: minutes, < 24 hours: hours, >= 24 hours: days
+                if hours and hours < 6:
+                    time_group = "date_trunc('minute', \"created_at\")"
+                    date_format = '%H:%M'
+                elif hours and hours < 24:
                     time_group = "date_trunc('hour', \"created_at\")"
-                elif hours and hours <= 168:  # 7 days
-                    # For medium ranges, group by day
-                    time_group = "date_trunc('day', \"created_at\")"
+                    date_format = '%m-%d %H:00'
                 else:
-                    # For long ranges, group by day
                     time_group = "date_trunc('day', \"created_at\")"
+                    date_format = '%Y-%m-%d'
 
                 if hours:
                     cur.execute(f"""
@@ -359,7 +360,27 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
                     GROUP BY time_bucket, service_name
                     ORDER BY time_bucket, service_name
                 """, (hours,))
+                    return cur.fetchall(), date_format
                 elif start_date and end_date:
+                    # Calculate range in hours for granularity determination
+                    from datetime import datetime
+                    try:
+                        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                        end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                        range_hours = (end_dt - start_dt).total_seconds() / 3600
+                    except:
+                        range_hours = 24  # default
+
+                    if range_hours < 6:
+                        time_group = "date_trunc('minute', \"created_at\")"
+                        date_format = '%H:%M'
+                    elif range_hours < 24:
+                        time_group = "date_trunc('hour', \"created_at\")"
+                        date_format = '%m-%d %H:00'
+                    else:
+                        time_group = "date_trunc('day', \"created_at\")"
+                        date_format = '%Y-%m-%d'
+
                     cur.execute(f"""
                     SELECT
                         {time_group} as time_bucket,
@@ -370,6 +391,7 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
                     GROUP BY time_bucket, service_name
                     ORDER BY time_bucket, service_name
                 """, (start_date, end_date))
+                    return cur.fetchall(), date_format
                 else:
                     cur.execute("""
                     SELECT
@@ -381,9 +403,9 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
                     GROUP BY time_bucket, service_name
                     ORDER BY time_bucket, service_name
                 """)
-                return cur.fetchall()
+                    return cur.fetchall(), '%Y-%m-%d'
 
-    timeline = await asyncio.to_thread(get_timeline)
+    timeline, date_format = await asyncio.to_thread(get_timeline)
 
     # Transform data for chart
     services = set()
@@ -393,7 +415,7 @@ async def get_token_stats_timeline(start_date: str = None, end_date: str = None,
     # Group by date
     date_data = {}
     for row in timeline:
-        date = row['time_bucket'].strftime('%Y-%m-%d') if hasattr(row['time_bucket'], 'strftime') else str(row['time_bucket'])
+        date = row['time_bucket'].strftime(date_format) if hasattr(row['time_bucket'], 'strftime') else str(row['time_bucket'])
         service = row['service_name']
         tokens = float(row['total_tokens'] or 0)
 
