@@ -280,9 +280,9 @@ class NotificationManager:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # Schedule in existing loop
-                asyncio.create_task(self.send_event(event_type, summary_data, title=title))
+                asyncio.create_task(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
             else:
-                loop.run_until_complete(self.send_event(event_type, summary_data, title=title))
+                loop.run_until_complete(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
         except RuntimeError:
             loop = asyncio.new_event_loop()
             loop.run_until_complete(self.send_event(event_type, summary_data, title=title))
