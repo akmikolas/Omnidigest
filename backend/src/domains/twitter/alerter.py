@@ -43,15 +43,15 @@ class TwitterAlerter:
         source_list = [s['author_screen_name'] for s in sources]
         sources_str = ', '.join([f"@{s}" for s in source_list]) if source_list else 'Unknown'
 
-        # Format all tweet URLs with titles
+        # Format tweet URLs with titles, limit to first 5
         tweet_urls_list = []
-        for item in tweet_data:
+        for i, item in enumerate(tweet_data[:5]):  # Limit to first 5
             if isinstance(item, dict):
-                url = item.get('url', '')
+                url = item.get('tweet_url', '')
                 text = item.get('text', '')[:50]  # Truncate text for display
-                if text:
+                if text and url:
                     tweet_urls_list.append(f"{text}...|{url}")
-                else:
+                elif url:
                     tweet_urls_list.append(url)
             else:
                 tweet_urls_list.append(str(item))
