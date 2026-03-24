@@ -6,7 +6,7 @@ const apiBaseURL = import.meta?.env?.VITE_API_URL || '/api'
 
 const api = axios.create({
   baseURL: apiBaseURL,
-  timeout: 10000, // 10 秒超时
+  timeout: 30000, // 30 秒超时
   headers: {
     'Content-Type': 'application/json'
   }
@@ -135,7 +135,9 @@ export const kgApi = {
   // Query relations with filters
   getRelations: (params) => api.get('/kg/relations', { params }),
   // Search path between entities
-  searchPath: (params) => api.get('/kg/search', { params })
+  searchPath: (params) => api.get('/kg/search', { params }),
+  // Country entities graph
+  countriesEntities: () => api.get('/kg/countries/entities')
 }
 
 // A-Stock Analysis API
@@ -157,7 +159,16 @@ export const astockApi = {
   // 个股行情
   stockQuote: (symbol) => api.get(`/astock/stocks/${symbol}`),
   // 个股新闻
-  stockNews: (symbol, limit = 20) => api.get(`/astock/stocks/${symbol}/news?limit=${limit}`)
+  stockNews: (symbol, limit = 20) => api.get(`/astock/stocks/${symbol}/news?limit=${limit}`),
+  // 指数历史数据
+  indicesHistory: (symbols = 'sh000001,sz399001', period = '1m') =>
+    api.get('/astock/indices/history', { params: { symbols, period } })
+}
+
+// Knowledge Graph Country Entities API
+export const kgCountryApi = {
+  // 获取国家关联实体
+  countriesEntities: () => api.get('/kg/countries/entities')
 }
 
 export default api

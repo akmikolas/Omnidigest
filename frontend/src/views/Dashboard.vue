@@ -47,6 +47,34 @@
         </div>
       </div>
 
+      <!-- Index Trend Chart -->
+      <div class="card indices-chart-card fade-in" style="margin-top: 16px;">
+        <div class="card-header">
+          <h3>📈 Index Trend</h3>
+          <div class="period-selector">
+            <button
+              v-for="p in periods"
+              :key="p.value"
+              class="period-btn"
+              :class="{ active: selectedPeriod === p.value }"
+              @click="selectPeriod(p.value)"
+            >
+              {{ p.label }}
+            </button>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div v-if="chartLoading" class="chart-loading">Loading chart data...</div>
+          <div v-else-if="chartError" class="chart-error">{{ chartError }}</div>
+          <Line v-else :data="chartData" :options="chartOptions" />
+        </div>
+      </div>
+
+      <!-- Knowledge Graph -->
+      <div class="kg-card fade-in" style="margin-top: 16px;">
+        <KnowledgeGraph />
+      </div>
+
       <!-- System Health - Smaller cards -->
       <div class="grid grid-3 fade-in" style="margin-top: 16px;">
         <div class="card system-card-small">
@@ -180,11 +208,27 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
-import { statsApi } from '../api'
+import { ref, computed, onMounted } from 'vue'
+import { Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+import { statsApi, astockApi } from '../api'
+import KnowledgeGraph from './KnowledgeGraph.vue'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 export default {
   name: 'Dashboard',
+  components: { KnowledgeGraph, Line },
   setup() {
     const loading = ref(true)
     const error = ref(null)
@@ -283,8 +327,121 @@ export default {
       return num.toLocaleString()
     }
 
+    // Chart state
+    const chartLoading = ref(false)
+    const chartError = ref(null)
+    const selectedPeriod = ref('1d')
+    const chartLabels = ref([])
+    const shanghaiData = ref([])
+    const shenzhenData = ref([])
+
+    const periods = [
+      { label: '1D', value: '1d' },
+      { label: '1W', value: '1w' },
+      { label: '1M', value: '1m' },
+      { label: '3M', value: '3m' }
+    ]
+
+    const chartData = computed(() => ({
+      labels: chartLabels.value,
+      datasets: [
+        {
+          label: 'Shanghai Composite',
+          data: shanghaiData.value,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        },
+        {
+          label: 'Shenzhen Component',
+          data: shenzhenData.value,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        }
+      ]
+    }))
+
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: 'var(--text-secondary)',
+            usePointStyle: true,
+            padding: 20
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          padding: 12,
+          cornerRadius: 8
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'var(--border-color)',
+            drawBorder: false
+          },
+          ticks: {
+            color: 'var(--text-muted)',
+            maxTicksLimit: 8
+          }
+        },
+        y: {
+          grid: {
+            color: 'var(--border-color)',
+            drawBorder: false
+          },
+          ticks: {
+            color: 'var(--text-muted)'
+          }
+        }
+      }
+    }
+
+    const loadChartData = async (period) => {
+      chartLoading.value = true
+      chartError.value = null
+      try {
+        const response = await astockApi.indicesHistory('sh000001,sz399001', period)
+        console.log('Index history response:', response)
+        if (response && response.dates) {
+          chartLabels.value = response.dates
+          shanghaiData.value = response.sh000001 || []
+          shenzhenData.value = response.sz399001 || []
+        }
+      } catch (e) {
+        chartError.value = 'Failed to load chart data'
+        console.error('Chart API error:', e)
+      } finally {
+        chartLoading.value = false
+      }
+    }
+
+    const selectPeriod = (period) => {
+      selectedPeriod.value = period
+      loadChartData(period)
+    }
+
     onMounted(() => {
       loadData()
+      loadChartData('1d')
     })
 
     return {
@@ -298,6 +455,14 @@ export default {
       todayInputTokens,
       todayOutputTokens,
       todayCachedTokens,
+      // Chart
+      chartLoading,
+      chartError,
+      selectedPeriod,
+      periods,
+      chartData,
+      chartOptions,
+      selectPeriod,
       // Methods
       getScoreClass,
       formatTime,
@@ -308,6 +473,61 @@ export default {
 </script>
 
 <style scoped>
+/* Index Chart Card */
+.indices-chart-card {
+  padding: 20px;
+}
+
+.indices-chart-card .card-header {
+  margin-bottom: 16px;
+}
+
+.period-selector {
+  display: flex;
+  gap: 4px;
+}
+
+.period-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.period-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.period-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.chart-container {
+  height: 300px;
+  position: relative;
+}
+
+.chart-loading,
+.chart-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.chart-error {
+  color: #ef4444;
+}
+
 /* Overview Stats - Highlight cards */
 .stat-card.highlight {
   display: flex;

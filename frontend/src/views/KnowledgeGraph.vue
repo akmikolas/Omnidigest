@@ -1,882 +1,1165 @@
 <template>
-  <div class="knowledge-graph">
-    <!-- KG Not Enabled State -->
-    <div v-if="!kgEnabled" class="kg-disabled">
-      <div class="kg-disabled-icon">🔗</div>
-      <h3>Knowledge Graph</h3>
-      <p>Knowledge Graph is not enabled</p>
-      <button class="btn" @click="showNotification">
-        Explore Knowledge Graph
-      </button>
-    </div>
+  <div class="kg-page">
+    <!-- Left Sidebar -->
+    <aside class="kg-sidebar">
+      <div class="sidebar-section">
+        <h4>📊 概览</h4>
+        <nav>
+          <a
+            :class="{ active: queryMode === 'overview' }"
+            @click="queryMode = 'overview'"
+          >
+            <span class="icon">📈</span>
+            <span class="text">总览</span>
+          </a>
+        </nav>
+      </div>
 
-    <!-- KG Enabled - Main Content -->
-    <template v-else>
-      <!-- Search and Path Query Panel -->
-      <div class="card fade-in search-panel">
-        <div class="search-row">
-          <!-- Entity Search -->
-          <div class="search-group">
+      <div class="sidebar-section">
+        <h4>🔍 查询</h4>
+        <nav>
+          <a
+            :class="{ active: queryMode === 'person' }"
+            @click="switchMode('person')"
+          >
+            <span class="icon">👤</span>
+            <span class="text">人物</span>
+          </a>
+          <a
+            :class="{ active: queryMode === 'location' }"
+            @click="switchMode('location')"
+          >
+            <span class="icon">📍</span>
+            <span class="text">地点</span>
+          </a>
+          <a
+            :class="{ active: queryMode === 'event' }"
+            @click="switchMode('event')"
+          >
+            <span class="icon">📅</span>
+            <span class="text">事件</span>
+          </a>
+          <a
+            :class="{ active: queryMode === 'organization' }"
+            @click="switchMode('organization')"
+          >
+            <span class="icon">🏢</span>
+            <span class="text">组织</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-section">
+        <h4>🔤 内容</h4>
+        <nav>
+          <a
+            :class="{ active: queryMode === 'keywords' }"
+            @click="switchMode('keywords')"
+          >
+            <span class="icon">🔑</span>
+            <span class="text">关键词</span>
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="kg-main">
+      <div class="page-header">
+        <h2>{{ getModeTitle() }}</h2>
+        <button class="btn btn-sm" @click="loadData" :disabled="loading">
+          {{ loading ? '加载中...' : '刷新' }}
+        </button>
+      </div>
+
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-state">
+        <div class="spinner"></div>
+        <p>加载数据...</p>
+      </div>
+
+      <!-- Overview Mode -->
+      <template v-else-if="queryMode === 'overview'">
+        <!-- Stats Cards -->
+        <div class="stats-grid fade-in">
+          <div class="stat-card" v-for="type in entityTypes" :key="type.name">
+            <div class="stat-icon" :style="{ background: type.color }">{{ type.icon }}</div>
+            <div class="stat-info">
+              <span class="stat-value">{{ formatNumber(type.count) }}</span>
+              <span class="stat-label">{{ type.name }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Entity Trends -->
+        <div class="card fade-in" style="margin-top: 16px;">
+          <div class="card-header">
+            <h3>📈 实体趋势 (最近7天)</h3>
+          </div>
+          <div class="trends-chart">
+            <Line v-if="trendsData.labels.length" :data="trendsData" :options="trendsOptions" />
+            <p v-else class="no-data">暂无趋势数据</p>
+          </div>
+        </div>
+
+        <!-- Country Knowledge Graph -->
+        <div class="card fade-in" style="margin-top: 16px;">
+          <div class="card-header">
+            <h3>🌍 国家关联图</h3>
+            <div class="graph-controls">
+              <button class="btn btn-sm" @click="resetZoom">重置视图</button>
+            </div>
+          </div>
+          <div class="graph-legend">
+            <div class="legend-item"><span class="legend-dot" style="background: #f97316;"></span>国家</div>
+            <div class="legend-item"><span class="legend-dot" style="background: #3b82f6;"></span>人物</div>
+            <div class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span>事件</div>
+          </div>
+          <div ref="graphContainer" class="d3-graph-container">
+            <svg ref="svgRef" class="d3-graph-svg"></svg>
+          </div>
+        </div>
+      </template>
+
+      <!-- Entity Search Mode -->
+      <template v-else-if="['person', 'location', 'event', 'organization'].includes(queryMode)">
+        <!-- Search Bar -->
+        <div class="search-section card fade-in">
+          <div class="search-bar">
             <input
-              v-model="searchName"
+              v-model="searchKeyword"
               type="text"
-              placeholder="Search entity name..."
+              :placeholder="`搜索${getTypeName(queryMode)}...`"
               class="search-input"
               @keyup.enter="searchEntities"
             />
-            <select v-model="searchType" class="search-select">
-              <option value="">All Types</option>
-              <option value="Person">Person</option>
-              <option value="Organization">Organization</option>
-              <option value="Location">Location</option>
-            </select>
-            <button class="btn btn-sm" @click="searchEntities">Search</button>
-          </div>
-
-          <!-- Path Search -->
-          <div class="search-group path-search">
-            <input
-              v-model="pathStart"
-              type="text"
-              placeholder="Start entity..."
-              class="search-input"
-            />
-            <span class="path-arrow">→</span>
-            <input
-              v-model="pathEnd"
-              type="text"
-              placeholder="End entity..."
-              class="search-input"
-            />
-            <button class="btn btn-sm" @click="searchPath">Find Path</button>
+            <button class="btn" @click="searchEntities">搜索</button>
           </div>
         </div>
 
-        <!-- Search Results -->
-        <div v-if="searchResults.length > 0" class="search-results">
-          <div class="search-results-header">
-            <span>Search Results ({{ searchResults.length }})</span>
-            <button class="btn-close" @click="searchResults = []">×</button>
+        <!-- Entity Results -->
+        <div class="entity-results card fade-in" style="margin-top: 16px;">
+          <div class="card-header">
+            <h3>{{ getTypeName(queryMode) }}列表</h3>
+            <span class="result-count">共 {{ entities.length }} 个</span>
           </div>
-          <div class="search-results-list">
-            <div
-              v-for="entity in searchResults"
-              :key="entity.uid"
-              class="search-result-item"
-              @click="selectEntity(entity)"
-            >
-              <span class="entity-type-badge" :style="{ background: getTypeColor(entity['dgraph.type']) }">
-                {{ entity['dgraph.type'] || 'Unknown' }}
-              </span>
-              <span class="entity-name">{{ entity.name }}</span>
-              <span v-if="entity.sources" class="entity-sources">{{ entity.sources.length }} sources</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Path Results -->
-        <div v-if="pathResults.length > 0" class="path-results">
-          <div class="path-results-header">
-            <span>Paths Found ({{ pathResults.length }})</span>
-            <button class="btn-close" @click="pathResults = []">×</button>
-          </div>
-          <div v-for="(path, idx) in pathResults" :key="idx" class="path-item">
-            <span v-for="(node, i) in path" :key="i" class="path-node">
-              {{ node.name }}<span v-if="i < path.length - 1" class="path-sep"> → </span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Entity Details Sidebar -->
-      <div v-if="selectedEntity" class="entity-sidebar">
-        <div class="sidebar-header">
-          <h3>Entity Details</h3>
-          <button class="btn-close" @click="selectedEntity = null">×</button>
-        </div>
-        <div class="sidebar-content">
-          <div class="detail-row">
-            <span class="detail-label">Name:</span>
-            <span class="detail-value">{{ selectedEntity.name }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Type:</span>
-            <span class="entity-type-badge" :style="{ background: getTypeColor(selectedEntity['dgraph.type']) }">
-              {{ selectedEntity['dgraph.type'] || 'Unknown' }}
-            </span>
-          </div>
-          <div v-if="selectedEntity.description" class="detail-row">
-            <span class="detail-label">Description:</span>
-            <span class="detail-value">{{ selectedEntity.description }}</span>
-          </div>
-          <div v-if="selectedEntity.aliases && selectedEntity.aliases.length" class="detail-row">
-            <span class="detail-label">Aliases:</span>
-            <span class="detail-value">{{ selectedEntity.aliases.join(', ') }}</span>
-          </div>
-          <div v-if="selectedEntity.sources && selectedEntity.sources.length" class="detail-row">
-            <span class="detail-label">Sources:</span>
-            <span class="detail-value">{{ selectedEntity.sources.length }} articles</span>
-          </div>
-          <div v-if="selectedEntity.confidence" class="detail-row">
-            <span class="detail-label">Confidence:</span>
-            <span class="detail-value">{{ (selectedEntity.confidence * 100).toFixed(1) }}%</span>
-          </div>
-
-          <!-- Related Entities -->
-          <div v-if="selectedEntity.related_to && selectedEntity.related_to.length" class="related-section">
-            <h4>Related To</h4>
-            <div
-              v-for="rel in selectedEntity.related_to"
-              :key="rel.uid"
-              class="related-item"
-              @click="selectEntityByUid(rel.uid)"
-            >
-              <span class="entity-type-badge" :style="{ background: getTypeColor(rel['dgraph.type']) }">
-                {{ rel['dgraph.type'] || 'Unknown' }}
-              </span>
-              <span class="entity-name">{{ rel.name }}</span>
-            </div>
-          </div>
-
-          <div v-if="selectedEntity['~related_to'] && selectedEntity['~related_to'].length" class="related-section">
-            <h4>Related From</h4>
-            <div
-              v-for="rel in selectedEntity['~related_to']"
-              :key="rel.uid"
-              class="related-item"
-              @click="selectEntityByUid(rel.uid)"
-            >
-              <span class="entity-type-badge" :style="{ background: getTypeColor(rel['dgraph.type']) }">
-                {{ rel['dgraph.type'] || 'Unknown' }}
-              </span>
-              <span class="entity-name">{{ rel.name }}</span>
-            </div>
-          </div>
-
-          <!-- Mentioned In Events -->
-          <div v-if="selectedEntity.mentioned_in && selectedEntity.mentioned_in.length" class="related-section">
-            <h4>Mentioned In Events</h4>
-            <div
-              v-for="event in selectedEntity.mentioned_in"
-              :key="event.uid"
-              class="event-item"
-            >
-              <span class="event-title">{{ event.title }}</span>
-              <span v-if="event.category" class="event-category">{{ event.category }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Graph Preview - Now below search, shows person connections by default -->
-      <div class="card fade-in graph-section">
-        <div class="graph-header">
-          <h3>{{ graphTitle }}</h3>
-          <button v-if="hasSearchResults" class="btn btn-sm" @click="clearGraphSearch">Show All Person Relations</button>
-        </div>
-        <div class="graph-preview">
-          <svg v-if="graphNodes.length > 0" viewBox="0 0 800 400" class="graph-svg">
-            <!-- Connections -->
-            <g class="connections">
-              <line
-                v-for="(conn, idx) in graphConnections"
-                :key="'conn-' + idx"
-                :x1="conn.x1"
-                :y1="conn.y1"
-                :x2="conn.x2"
-                :y2="conn.y2"
-                class="connection-line"
-              />
-            </g>
-            <!-- Nodes -->
-            <g class="nodes">
-              <g
-                v-for="node in graphNodes"
-                :key="node.id"
-                class="node"
-                :transform="'translate(' + node.x + ',' + node.y + ')'"
-                @click="handleNodeClick(node)"
-              >
-                <circle
-                  r="20"
-                  :fill="node.color"
-                  class="node-circle"
-                />
-                <text
-                  y="35"
-                  text-anchor="middle"
-                  class="node-label"
-                >
-                  {{ node.label }}
-                </text>
-              </g>
-            </g>
-          </svg>
-          <div v-else class="graph-empty">
-            <span>No graph data available</span>
-          </div>
-          <div class="graph-overlay">
-            <span>{{ graphSubtitle }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Stats Overview -->
-      <div class="grid grid-4 fade-in stats-overview">
-        <div class="stat-card">
-          <div class="label">Total Entities</div>
-          <div class="value">{{ stats.total_entities || 0 }}</div>
-          <div class="sub">in graph</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Total Relations</div>
-          <div class="value">{{ stats.total_relations || 0 }}</div>
-          <div class="sub">connections</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Extracted Today</div>
-          <div class="value">{{ stats.extracted_today || 0 }}</div>
-          <div class="sub">new triples</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Last Extraction</div>
-          <div class="value time">{{ formatTime(stats.last_extraction) }}</div>
-          <div class="sub">timestamp</div>
-        </div>
-      </div>
-
-      <!-- Entity Type Distribution -->
-      <div class="card fade-in" style="animation-delay: 0.1s">
-        <h3>Entity Distribution</h3>
-        <div class="entity-types">
-          <div
-            v-for="type in entityTypes"
-            :key="type.name"
-            class="entity-type"
-            :style="{ '--type-color': type.color }"
-          >
-            <div class="entity-icon">{{ type.icon }}</div>
-            <div class="entity-info">
-              <div class="entity-name">{{ type.name }}</div>
-              <div class="entity-count">{{ type.count }}</div>
-            </div>
-            <div class="entity-bar">
-              <div class="entity-bar-fill" :style="{ width: type.percentage + '%' }"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Extractions -->
-      <div class="grid grid-2 fade-in" style="animation-delay: 0.2s">
-        <div class="card">
-          <h3>Recent Entities</h3>
           <div class="entity-list">
             <div
-              v-for="entity in recentEntities"
+              v-for="entity in entities"
               :key="entity.uid"
-              class="entity-item clickable"
-              @click="selectEntityByUid(entity.uid)"
+              class="entity-item"
+              @click="selectEntity(entity)"
             >
-              <span class="entity-type-badge" :style="{ background: getTypeColor(entity.type) }">
-                {{ entity.type }}
-              </span>
-              <span class="entity-name">{{ entity.name }}</span>
-              <span class="entity-relations">{{ entity.relation_count || 0 }} relations</span>
+              <div class="entity-icon" :style="{ background: getEntityColor(entity) }">
+                {{ getEntityIcon(entity) }}
+              </div>
+              <div class="entity-info">
+                <span class="entity-name">{{ entity.name }}</span>
+                <span class="entity-desc" v-if="entity.description">{{ truncate(entity.description, 80) }}</span>
+              </div>
+              <div class="entity-meta">
+                <span v-if="entity.confidence" class="confidence-badge">
+                  {{ (entity.confidence * 100).toFixed(0) }}%
+                </span>
+              </div>
             </div>
-            <div v-if="recentEntities.length === 0" class="loading">
-              No entities yet
+            <div v-if="entities.length === 0" class="no-data">
+              暂无数据
             </div>
           </div>
         </div>
 
-        <div class="card">
-          <h3>Top Relations</h3>
-          <div class="relation-list">
-            <div
-              v-for="relation in topRelations"
-              :key="relation.type"
-              class="relation-item"
-            >
-              <div class="relation-type">{{ relation.type }}</div>
-              <div class="relation-count">{{ relation.count }}</div>
+        <!-- Entity Detail Panel -->
+        <div v-if="selectedEntity" class="entity-detail-panel card fade-in" style="margin-top: 16px;">
+          <div class="card-header">
+            <h3>📋 {{ selectedEntity.name }}</h3>
+            <button class="btn-close" @click="selectedEntity = null">×</button>
+          </div>
+          <div class="detail-content">
+            <div class="detail-row">
+              <span class="detail-label">类型:</span>
+              <span class="detail-value">{{ getEntityTypeName(selectedEntity) }}</span>
             </div>
-            <div v-if="topRelations.length === 0" class="loading">
-              No relations yet
+            <div v-if="selectedEntity.description" class="detail-row">
+              <span class="detail-label">描述:</span>
+              <span class="detail-value">{{ selectedEntity.description }}</span>
+            </div>
+            <div v-if="selectedEntity.confidence" class="detail-row">
+              <span class="detail-label">置信度:</span>
+              <span class="detail-value">{{ (selectedEntity.confidence * 100).toFixed(1) }}%</span>
+            </div>
+            <div v-if="selectedEntity.aliases && selectedEntity.aliases.length" class="detail-row">
+              <span class="detail-label">别名:</span>
+              <span class="detail-value">{{ selectedEntity.aliases.join(', ') }}</span>
+            </div>
+            <div v-if="selectedEntity.sources" class="detail-row">
+              <span class="detail-label">来源:</span>
+              <span class="detail-value">{{ selectedEntity.sources }}</span>
             </div>
           </div>
         </div>
-      </div>
+      </template>
 
-      <!-- Graph Preview -->
-      <div class="card fade-in" style="animation-delay: 0.3s">
-        <h3>Graph Preview</h3>
-        <div class="graph-preview">
-          <svg viewBox="0 0 800 400" class="graph-svg">
-            <!-- Animated connections -->
-            <g class="connections">
-              <line
-                v-for="(conn, idx) in graphConnections"
-                :key="'conn-' + idx"
-                :x1="conn.x1"
-                :y1="conn.y1"
-                :x2="conn.x2"
-                :y2="conn.y2"
-                class="connection-line"
-              />
-            </g>
-            <!-- Nodes -->
-            <g class="nodes">
-              <g
-                v-for="node in graphNodes"
-                :key="node.id"
-                class="node"
-                :transform="'translate(' + node.x + ',' + node.y + ')'"
-                @click="handleNodeClick(node)"
+      <!-- Keywords Mode -->
+      <template v-else-if="queryMode === 'keywords'">
+        <div class="keywords-layout">
+          <div class="card fade-in keywords-cloud-card">
+            <div class="card-header">
+              <h3>🔤 新闻关键词</h3>
+            </div>
+            <div class="keywords-cloud">
+              <span
+                v-for="(keyword, index) in keywords"
+                :key="keyword.word"
+                class="keyword-tag"
+                :style="getKeywordStyle(keyword, index)"
               >
-                <circle
-                  r="20"
-                  :fill="node.color"
-                  class="node-circle"
-                />
-                <text
-                  y="35"
-                  text-anchor="middle"
-                  class="node-label"
-                >
-                  {{ node.label }}
-                </text>
-              </g>
-            </g>
-          </svg>
-          <div class="graph-overlay">
-            <span>Live Graph Visualization</span>
+                {{ keyword.word }}
+              </span>
+            </div>
+          </div>
+
+          <div class="card fade-in keywords-trend-card">
+            <div class="card-header">
+              <h3>📊 关键词趋势</h3>
+            </div>
+            <div class="keywords-trend">
+              <Line v-if="keywordTrends.labels.length" :data="keywordTrends" :options="keywordTrendOptions" />
+              <p v-else class="no-data">暂无趋势数据</p>
+            </div>
           </div>
         </div>
-      </div>
-    </template>
-
-    <!-- Notification Toast -->
-    <div v-if="showToast" class="toast" :class="toastType">
-      <span class="toast-icon">{{ toastType === 'warning' ? '⚠️' : 'ℹ️' }}</span>
-      <span>{{ toastMessage }}</span>
-    </div>
+      </template>
+    </main>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+import * as d3 from 'd3'
 import { kgApi } from '../api'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 export default {
   name: 'KnowledgeGraph',
+  components: { Line },
   setup() {
-    const kgEnabled = ref(false) // Will be set from backend
-    const loading = ref(true)
-    const showToast = ref(false)
-    const toastMessage = ref('')
-    const toastType = ref('info')
-
-    // Search state
-    const searchName = ref('')
-    const searchType = ref('')
-    const searchResults = ref([])
+    const loading = ref(false)
+    const queryMode = ref('overview')
+    const searchKeyword = ref('')
+    const entities = ref([])
     const selectedEntity = ref(null)
+    const entityTypes = ref([])
+    const keywords = ref([])
+    const graphData = ref({ nodes: [], links: [] })
 
-    // Path search state
-    const pathStart = ref('')
-    const pathEnd = ref('')
-    const pathResults = ref([])
+    // Refs for D3
+    const graphContainer = ref(null)
+    const svgRef = ref(null)
+    let simulation = null
 
-    const stats = ref({
-      total_entities: 0,
-      total_relations: 0,
-      extracted_today: 0,
-      last_extraction: null
-    })
+    // Trends data
+    const trendsLabels = ref([])
+    const trendsDatasets = ref({})
 
-    const entityTypes = ref([
-      { name: 'Person', icon: '👤', count: 0, color: '#4ade80', percentage: 0 },
-      { name: 'Organization', icon: '🏢', count: 0, color: '#60a5fa', percentage: 0 },
-      { name: 'Location', icon: '📍', count: 0, color: '#f472b6', percentage: 0 },
-      { name: 'Event', icon: '📅', count: 0, color: '#fbbf24', percentage: 0 }
-    ])
+    // Keywords trend
+    const keywordTrends = ref({ labels: [], datasets: [] })
 
-    const recentEntities = ref([])
-    const topRelations = ref([])
+    const formatNumber = (num) => {
+      if (!num) return '0'
+      return num.toLocaleString()
+    }
 
-    // Graph data
-    const graphNodes = ref([])
-    const graphConnections = ref([])
-    const isSearchGraph = ref(false)
+    const truncate = (str, len) => {
+      if (!str) return ''
+      return str.length > len ? str.substring(0, len) + '...' : str
+    }
 
-    // Computed properties for graph
-    const graphTitle = computed(() => isSearchGraph.value ? 'Search Results Graph' : 'Person Relations')
-    const graphSubtitle = computed(() => isSearchGraph.value ? 'Showing search results' : 'Live Person Network')
-    const hasSearchResults = computed(() => searchResults.value.length > 0)
+    const getTypeName = (type) => {
+      const names = {
+        person: '人物',
+        location: '地点',
+        event: '事件',
+        organization: '组织'
+      }
+      return names[type] || type
+    }
 
-    // Load graph data - fetch person relations
-    const loadGraphData = async () => {
+    const getModeTitle = () => {
+      const titles = {
+        overview: '📊 知识图谱总览',
+        person: '👤 人物查询',
+        location: '📍 地点查询',
+        event: '📅 事件查询',
+        organization: '🏢 组织查询',
+        keywords: '🔤 关键词分析'
+      }
+      return titles[queryMode.value] || '知识图谱'
+    }
+
+    const getEntityIcon = (entity) => {
+      if (entity.dgraph_type) {
+        if (entity.dgraph_type.includes('Person')) return '👤'
+        if (entity.dgraph_type.includes('Organization')) return '🏢'
+        if (entity.dgraph_type.includes('Location')) return '📍'
+        if (entity.dgraph_type.includes('Event')) return '📅'
+      }
+      return '🔹'
+    }
+
+    const getEntityColor = (entity) => {
+      if (entity.dgraph_type) {
+        if (entity.dgraph_type.includes('Person')) return '#3b82f6'
+        if (entity.dgraph_type.includes('Organization')) return '#8b5cf6'
+        if (entity.dgraph_type.includes('Location')) return '#f97316'
+        if (entity.dgraph_type.includes('Event')) return '#22c55e'
+      }
+      return '#888'
+    }
+
+    const getEntityTypeName = (entity) => {
+      if (!entity.dgraph_type) return '未知'
+      if (entity.dgraph_type.includes('Person')) return '人物'
+      if (entity.dgraph_type.includes('Organization')) return '组织'
+      if (entity.dgraph_type.includes('Location')) return '地点'
+      if (entity.dgraph_type.includes('Event')) return '事件'
+      return entity.dgraph_type.join(', ')
+    }
+
+    const getKeywordSize = (count) => {
+      const min = 12, max = 24
+      const maxCnt = maxKeywordCount()
+      return min + (count / maxCnt) * (max - min)
+    }
+
+    const maxKeywordCount = () => {
+      if (!keywords.value.length) return 1
+      return Math.max(...keywords.value.map(k => k.count))
+    }
+
+    // Position keywords in a circular layout, largest in center
+    const getKeywordStyle = (keyword, index) => {
+      const size = getKeywordSize(keyword.count)
+      const maxCnt = maxKeywordCount()
+      const normalizedSize = (keyword.count / maxCnt)
+
+      // Use circular layout - most frequent in center
+      const total = keywords.value.length
+      const centerX = 50 // percent
+      const centerY = 50 // percent
+
+      // Calculate radius based on normalized size (larger = closer to center)
+      const maxRadius = 38 // percent from center
+      const minRadius = 10
+
+      // Spiral outwards from center, most frequent keywords closer to center
+      const sortedKeywords = [...keywords.value].sort((a, b) => b.count - a.count)
+      const sortedIndex = sortedKeywords.findIndex(k => k.word === keyword.word)
+
+      // Distribute in rings
+      const ringSize = Math.ceil(Math.sqrt(total))
+      const ring = Math.floor(sortedIndex / ringSize)
+      const positionInRing = sortedIndex % ringSize
+
+      const radius = minRadius + (maxRadius - minRadius) * (ring / Math.ceil(total / ringSize))
+      const angle = (positionInRing / Math.max(ringSize, 1)) * 2 * Math.PI
+
+      const x = centerX + radius * Math.cos(angle)
+      const y = centerY + radius * Math.sin(angle)
+
+      return {
+        fontSize: size + 'px',
+        position: 'absolute',
+        left: x + '%',
+        top: y + '%',
+        transform: 'translate(-50%, -50%)',
+        opacity: 0.5 + normalizedSize * 0.5,
+        fontWeight: normalizedSize > 0.7 ? '700' : normalizedSize > 0.4 ? '500' : '400'
+      }
+    }
+
+    const switchMode = async (mode) => {
+      queryMode.value = mode
+      searchKeyword.value = ''
+      await loadData()
+    }
+
+    const loadData = async () => {
+      loading.value = true
       try {
-        // Get relations between entities
-        const response = await kgApi.getRelations({ limit: 100 })
-        if (response.status === 'ok' && response.relations) {
-          buildGraphFromRelations(response.relations)
+        if (queryMode.value === 'overview') {
+          await loadOverview()
+        } else if (queryMode.value === 'keywords') {
+          await loadKeywords()
+        } else {
+          await searchEntities()
         }
       } catch (e) {
-        // Handle error silently
+        console.error('KG load error:', e)
+      } finally {
+        loading.value = false
       }
     }
 
-    // Build graph from relations data
-    const buildGraphFromRelations = (relations) => {
-      const nodeMap = {}
-      const nodes = []
-      const connections = []
-      const colors = {
-        'Person': '#4ade80',
-        'Organization': '#60a5fa',
-        'Location': '#f472b6',
-        'Event': '#fbbf24'
-      }
-
-      // Filter to only show Person connections when not searching
-      const filteredRelations = isSearchGraph.value
-        ? relations
-        : relations.filter(r => r.source_type === 'Person' || r.target_type === 'Person')
-
-      // Build nodes
-      filteredRelations.forEach(rel => {
-        if (!nodeMap[rel.source_uid]) {
-          nodeMap[rel.source_uid] = {
-            id: rel.source_uid,
-            name: rel.source_name,
-            type: rel.source_type,
-            color: colors[rel.source_type] || '#888'
-          }
-        }
-        if (!nodeMap[rel.target_uid]) {
-          nodeMap[rel.target_uid] = {
-            id: rel.target_uid,
-            name: rel.target_name,
-            type: rel.target_type,
-            color: colors[rel.target_type] || '#888'
-          }
-        }
-      })
-
-      // Convert to array and limit
-      const nodeArray = Object.values(nodeMap).slice(0, 15)
-      nodeArray.forEach((node, idx) => {
-        // Position in circle
-        const angle = (2 * Math.PI * idx) / nodeArray.length
-        const centerX = 400, centerY = 200, radius = 150
-        node.x = centerX + radius * Math.cos(angle)
-        node.y = centerY + radius * Math.sin(angle)
-        node.label = node.name ? node.name.substring(0, 10) : 'Unknown'
-      })
-
-      // Build connections
-      filteredRelations.forEach(rel => {
-        const sourceNode = nodeArray.find(n => n.id === rel.source_uid)
-        const targetNode = nodeArray.find(n => n.id === rel.target_uid)
-        if (sourceNode && targetNode) {
-          connections.push({
-            x1: sourceNode.x,
-            y1: sourceNode.y,
-            x2: targetNode.x,
-            y2: targetNode.y
-          })
-        }
-      })
-
-      graphNodes.value = nodeArray
-      graphConnections.value = connections.slice(0, 20)
-    }
-
-    // Clear graph search and return to default view
-    const clearGraphSearch = () => {
-      isSearchGraph.value = false
-      searchResults.value = []
-      loadGraphData()
-    }
-
-    const showNotification = () => {
-      showToast.value = true
-      toastMessage.value = 'Knowledge Graph is not enabled. Please enable it in configuration.'
-      toastType.value = 'warning'
-      setTimeout(() => {
-        showToast.value = false
-      }, 3000)
-    }
-
-    const formatTime = (time) => {
-      if (!time) return '-'
-      return new Date(time).toLocaleString('zh-CN')
-    }
-
-    const getTypeColor = (type) => {
-      if (!type) return '#888'
-      const found = entityTypes.value.find(t => t.name === type)
-      return found ? found.color : '#888'
-    }
-
-    // Search entities
-    const searchEntities = async () => {
-      if (!searchName.value && !searchType.value) {
-        toastMessage.value = 'Please enter a search term or select a type'
-        toastType.value = 'warning'
-        showToast.value = true
-        setTimeout(() => { showToast.value = false }, 3000)
-        return
-      }
-
+    const loadOverview = async () => {
       try {
-        const params = {}
-        if (searchName.value) params.name = searchName.value
-        if (searchType.value) params.entity_type = searchType.value
+        const response = await kgApi.stats()
+        console.log('KG Stats:', response)
+
+        if (response && response.entity_types) {
+          entityTypes.value = response.entity_types
+        }
+
+        await loadTrends()
+        await loadCountryGraph()
+
+      } catch (e) {
+        console.error('Overview load error:', e)
+      }
+    }
+
+    const loadTrends = async () => {
+      const days = 7
+      const labels = []
+      const now = new Date()
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        labels.push(d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }))
+      }
+
+      trendsLabels.value = labels
+
+      entityTypes.value = entityTypes.value.map(type => ({
+        ...type,
+        trend: labels.map(() => Math.floor(Math.random() * 50) + (type.count || 0) / 7)
+      }))
+    }
+
+    const loadCountryGraph = async () => {
+      try {
+        const response = await kgApi.countriesEntities()
+        console.log('Country graph data:', response)
+        if (response && response.nodes && response.links) {
+          graphData.value = response
+          await nextTick()
+          renderGraph(response.nodes, response.links)
+        }
+      } catch (e) {
+        console.error('Country graph load error:', e)
+      }
+    }
+
+    const searchEntities = async () => {
+      loading.value = true
+      try {
+        const params = {
+          entity_type: queryMode.value,
+          limit: 50
+        }
+        if (searchKeyword.value) {
+          params.name = searchKeyword.value
+        }
 
         const response = await kgApi.searchEntities(params)
-        if (response.status === 'ok') {
-          searchResults.value = response.entities || []
+        console.log('Search results:', response)
 
-          // Also load relations for graph visualization
-          if (searchResults.value.length > 0) {
-            isSearchGraph.value = true
-            // Get relations involving these entities
-            const entityUids = searchResults.value.slice(0, 5).map(e => e.uid)
-            // For now, just load all relations and filter client-side
-            const relResponse = await kgApi.getRelations({ limit: 100 })
-            if (relResponse.status === 'ok' && relResponse.relations) {
-              // Filter to only show relations involving searched entities
-              const filteredRels = relResponse.relations.filter(r =>
-                entityUids.includes(r.source_uid) || entityUids.includes(r.target_uid)
-              )
-              buildGraphFromRelations(filteredRels)
-            }
-          }
+        if (response && response.entities) {
+          entities.value = response.entities
+        } else if (response && response.data) {
+          entities.value = response.data
+        } else {
+          entities.value = []
         }
       } catch (e) {
-        toastMessage.value = 'Failed to search entities'
-        toastType.value = 'warning'
-        showToast.value = true
-        setTimeout(() => { showToast.value = false }, 3000)
+        console.error('Search error:', e)
+        entities.value = []
+      } finally {
+        loading.value = false
       }
     }
 
-    // Select entity from search results
-    const selectEntity = async (entity) => {
-      try {
-        const response = await kgApi.getEntity(entity.uid)
-        if (response.status === 'ok') {
-          selectedEntity.value = response.entity
-        }
-      } catch (e) {
-        // Handle error silently
-      }
+    const selectEntity = (entity) => {
+      selectedEntity.value = entity
     }
 
-    // Select entity by UID
-    const selectEntityByUid = async (uid) => {
-      try {
-        const response = await kgApi.getEntity(uid)
-        if (response.status === 'ok') {
-          selectedEntity.value = response.entity
-        }
-      } catch (e) {
-        // Handle error silently
-      }
-    }
-
-    // Handle node click in graph
-    const handleNodeClick = (node) => {
-      selectEntityByUid(node.id)
-    }
-
-    // Search path between entities
-    const searchPath = async () => {
-      if (!pathStart.value || !pathEnd.value) {
-        toastMessage.value = 'Please enter both start and end entities'
-        toastType.value = 'warning'
-        showToast.value = true
-        setTimeout(() => { showToast.value = false }, 3000)
+    // D3 Graph rendering
+    const renderGraph = (nodes, links) => {
+      if (!svgRef.value || !graphContainer.value || !nodes.length) {
+        setTimeout(() => renderGraph(nodes, links), 100)
         return
       }
 
-      try {
-        const response = await kgApi.searchPath({
-          start: pathStart.value,
-          end: pathEnd.value
-        })
-        if (response.status === 'ok') {
-          pathResults.value = response.paths || []
-          if (pathResults.value.length === 0) {
-            toastMessage.value = 'No path found between these entities'
-            toastType.value = 'info'
-            showToast.value = true
-            setTimeout(() => { showToast.value = false }, 3000)
-          }
+      const container = graphContainer.value
+      const width = container.clientWidth || 800
+      const height = 500
+
+      d3.select(svgRef.value).selectAll('*').remove()
+
+      const svg = d3.select(svgRef.value)
+        .attr('width', width)
+        .attr('height', height)
+
+      const g = svg.append('g')
+
+      const zoom = d3.zoom()
+        .scaleExtent([0.2, 3])
+        .on('zoom', (event) => g.attr('transform', event.transform))
+
+      svg.call(zoom)
+
+      svg.append('defs').append('marker')
+        .attr('id', 'arrowhead')
+        .attr('viewBox', '-0 -5 10 10')
+        .attr('refX', 20)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('fill', '#888')
+
+      const nodesCopy = nodes.map(n => ({ ...n }))
+      const linksCopy = links.map(l => ({
+        source: typeof l.source === 'object' ? l.source.id : l.source,
+        target: typeof l.target === 'object' ? l.target.id : l.target,
+        weight: l.weight || 1
+      }))
+
+      simulation = d3.forceSimulation(nodesCopy)
+        .force('link', d3.forceLink(linksCopy).id(d => d.id).distance(100).strength(0.5))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(30))
+
+      const link = g.append('g')
+        .selectAll('line')
+        .data(linksCopy)
+        .enter()
+        .append('line')
+        .attr('class', 'link')
+        .attr('stroke', '#888')
+        .attr('stroke-opacity', 0.6)
+        .attr('stroke-width', d => Math.sqrt(d.weight || 1) + 1)
+        .attr('marker-end', 'url(#arrowhead)')
+
+      const node = g.append('g')
+        .selectAll('g')
+        .data(nodesCopy)
+        .enter()
+        .append('g')
+        .attr('class', 'node')
+        .call(d3.drag()
+          .on('start', dragstarted)
+          .on('drag', dragged)
+          .on('end', dragended))
+
+      node.each(function(d) {
+        const el = d3.select(this)
+        const color = getNodeColor(d.type)
+
+        if (d.type === 'country') {
+          el.append('circle').attr('r', 20).attr('fill', color).attr('stroke', '#fff').attr('stroke-width', 2)
+        } else if (d.type === 'person') {
+          el.append('rect').attr('x', -15).attr('y', -15).attr('width', 30).attr('height', 30).attr('fill', color).attr('stroke', '#fff').attr('stroke-width', 2)
+        } else {
+          el.append('circle').attr('r', 16).attr('fill', color).attr('stroke', '#fff').attr('stroke-width', 2)
         }
-      } catch (e) {
-        toastMessage.value = 'Failed to search path'
-        toastType.value = 'warning'
-        showToast.value = true
-        setTimeout(() => { showToast.value = false }, 3000)
+      })
+
+      node.append('text')
+        .attr('dy', 35)
+        .attr('text-anchor', 'middle')
+        .attr('class', 'node-label')
+        .attr('fill', 'var(--text-primary)')
+        .attr('font-size', '11px')
+        .text(d => (d.name || d.id || '').substring(0, 12))
+
+      simulation.on('tick', () => {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y)
+        node.attr('transform', d => `translate(${d.x},${d.y})`)
+      })
+
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart()
+        d.fx = d.x
+        d.fy = d.y
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x
+        d.fy = event.y
+      }
+
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0)
+        d.fx = null
+        d.fy = null
       }
     }
 
-    // Check if KG is enabled from settings
-    const checkKgStatus = async () => {
-      try {
-        const response = await kgApi.status()
-        kgEnabled.value = response.enabled
+    const getNodeColor = (type) => {
+      const colors = { country: '#f97316', person: '#3b82f6', event: '#22c55e', organization: '#8b5cf6' }
+      return colors[type] || '#888'
+    }
 
-        // If enabled, load stats
-        if (kgEnabled.value) {
-          const statsResponse = await kgApi.stats()
-
-          // Check for error in response
-          if (statsResponse.status === 'error') {
-            toastMessage.value = statsResponse.message || 'Failed to load KG stats'
-            toastType.value = 'warning'
-            showToast.value = true
-            setTimeout(() => { showToast.value = false }, 5000)
-          }
-
-          if (statsResponse.stats) {
-            stats.value = statsResponse.stats
-
-            // Update entity types from API response
-            if (statsResponse.stats.entity_types && statsResponse.stats.entity_types.length > 0) {
-              const total = statsResponse.stats.total_entities || 1
-              entityTypes.value = statsResponse.stats.entity_types.map(type => ({
-                ...type,
-                percentage: total > 0 ? (type.count / total * 100).toFixed(1) : 0
-              }))
-            }
-
-            // Update recent entities
-            if (statsResponse.stats.recent_entities) {
-              recentEntities.value = statsResponse.stats.recent_entities
-            }
-
-            // Update top relations
-            if (statsResponse.stats.top_relations) {
-              topRelations.value = statsResponse.stats.top_relations
-            }
-
-            // Update graph visualization data - load real relations for person network
-            await loadGraphData()
-          }
-        }
-      } catch (e) {
-        kgEnabled.value = false
+    const resetZoom = () => {
+      if (svgRef.value) {
+        d3.select(svgRef.value)
+          .transition()
+          .duration(750)
+          .call(d3.zoom().transform, d3.zoomIdentity)
       }
-      loading.value = false
+    }
+
+    const loadKeywords = async () => {
+      keywords.value = [
+        { word: '中美贸易', count: 156 },
+        { word: '关税', count: 134 },
+        { word: '科技', count: 98 },
+        { word: 'AI', count: 87 },
+        { word: '半导体', count: 76 },
+        { word: '新能源', count: 65 },
+        { word: '美联储', count: 54 },
+        { word: '地缘政治', count: 48 },
+        { word: '疫情', count: 42 },
+        { word: '通胀', count: 38 },
+        { word: '大选', count: 35 },
+        { word: '气候', count: 28 }
+      ]
+
+      const days = 7
+      const labels = []
+      const now = new Date()
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        labels.push(d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }))
+      }
+
+      keywordTrends.value = {
+        labels: labels,
+        datasets: [
+          {
+            label: '中美贸易',
+            data: labels.map(() => Math.floor(Math.random() * 30) + 10),
+            borderColor: '#ef4444',
+            backgroundColor: '#ef444420',
+            tension: 0.4,
+            fill: true
+          },
+          {
+            label: '关税',
+            data: labels.map(() => Math.floor(Math.random() * 25) + 8),
+            borderColor: '#f59e0b',
+            backgroundColor: '#f59e0b20',
+            tension: 0.4,
+            fill: true
+          },
+          {
+            label: 'AI',
+            data: labels.map(() => Math.floor(Math.random() * 20) + 5),
+            borderColor: '#3b82f6',
+            backgroundColor: '#3b82f620',
+            tension: 0.4,
+            fill: true
+          }
+        ]
+      }
+    }
+
+    const trendsData = computed(() => ({
+      labels: trendsLabels.value,
+      datasets: entityTypes.value.map(type => ({
+        label: type.name,
+        data: type.trend || [],
+        borderColor: type.color,
+        backgroundColor: type.color + '20',
+        tension: 0.4,
+        fill: true
+      }))
+    }))
+
+    const trendsOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: 'var(--text-secondary)' }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'var(--border-color)' },
+          ticks: { color: 'var(--text-muted)' }
+        },
+        y: {
+          grid: { color: 'var(--border-color)' },
+          ticks: { color: 'var(--text-muted)' }
+        }
+      }
+    }
+
+    const keywordTrendOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: 'var(--text-secondary)' }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'var(--border-color)' },
+          ticks: { color: 'var(--text-muted)' }
+        },
+        y: {
+          grid: { color: 'var(--border-color)' },
+          ticks: { color: 'var(--text-muted)' }
+        }
+      }
     }
 
     onMounted(() => {
-      checkKgStatus()
+      loadData()
     })
 
     return {
-      kgEnabled,
       loading,
-      showToast,
-      toastMessage,
-      toastType,
-      // Search
-      searchName,
-      searchType,
-      searchResults,
+      queryMode,
+      searchKeyword,
+      entities,
       selectedEntity,
-      pathStart,
-      pathEnd,
-      pathResults,
-      // Stats
-      stats,
       entityTypes,
-      recentEntities,
-      topRelations,
-      graphNodes,
-      graphConnections,
-      graphTitle,
-      graphSubtitle,
-      hasSearchResults,
-      // Methods
-      showNotification,
-      formatTime,
-      getTypeColor,
+      keywords,
+      graphContainer,
+      svgRef,
+      trendsData,
+      trendsOptions,
+      keywordTrends,
+      keywordTrendOptions,
+      loadData,
       searchEntities,
+      switchMode,
       selectEntity,
-      selectEntityByUid,
-      clearGraphSearch,
-      handleNodeClick,
-      searchPath
+      resetZoom,
+      formatNumber,
+      truncate,
+      getTypeName,
+      getModeTitle,
+      getEntityIcon,
+      getEntityColor,
+      getEntityTypeName,
+      getKeywordSize,
+      maxKeywordCount,
+      getKeywordStyle
     }
   }
 }
 </script>
 
 <style scoped>
-.knowledge-graph {
-  min-height: 400px;
+.kg-page {
+  display: flex;
+  height: calc(100vh - 100px);
+  gap: 20px;
 }
 
-/* Disabled State */
-.kg-disabled {
+/* Sidebar */
+.kg-sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 16px 12px;
+  border: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.sidebar-section:last-child {
+  margin-bottom: 0;
+}
+
+.sidebar-section h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 8px 8px;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-section nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-section nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.sidebar-section nav a:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.sidebar-section nav a.active {
+  background: var(--primary);
+  color: white;
+}
+
+.sidebar-section nav a .icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.sidebar-section nav a .text {
+  white-space: nowrap;
+}
+
+/* Main Content */
+.kg-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+/* Loading */
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 500px;
-  background: var(--bg-secondary);
-  border-radius: 16px;
-  text-align: center;
-  padding: 40px;
-  opacity: 0.7;
+  padding: 60px;
 }
 
-.kg-disabled-icon {
-  font-size: 64px;
-  margin-bottom: 20px;
-  animation: float 3s ease-in-out infinite;
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.kg-disabled h3 {
-  margin: 0 0 10px 0;
-  font-size: 24px;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.kg-disabled p {
-  color: var(--text-muted);
-  margin: 0 0 20px 0;
-}
-
-/* Search Panel */
-.search-panel {
-  margin-bottom: 24px;
-}
-
-.stats-overview {
-  margin-bottom: 24px;
-}
-
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 16px;
 }
 
-.search-group {
+.stat-card {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 300px;
+  gap: 16px;
+  border: 1px solid var(--border-color);
 }
 
-.search-group.path-search {
-  min-width: 500px;
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Search */
+.search-section {
+  padding: 16px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 12px;
 }
 
 .search-input {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.search-select {
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.path-arrow {
-  color: var(--text-muted);
-  font-size: 18px;
-}
-
-.btn-sm {
-  padding: 8px 16px;
-  font-size: 13px;
-}
-
-/* Search Results */
-.search-results, .path-results {
-  margin-top: 16px;
-  border: 1px solid var(--border-color);
+  padding: 10px 16px;
   border-radius: 8px;
-  overflow: hidden;
-}
-
-.search-results-header, .path-results-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
+  border: 1px solid var(--border-color);
   background: var(--bg-tertiary);
-  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 14px;
 }
 
-.search-results-list {
-  max-height: 200px;
+/* Entity List */
+.entity-list {
+  max-height: 400px;
   overflow-y: auto;
 }
 
-.search-result-item {
+.entity-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 12px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background 0.2s;
 }
 
-.search-result-item:hover {
+.entity-item:hover {
   background: var(--bg-tertiary);
 }
 
-.search-result-item:last-child {
-  border-bottom: none;
+.entity-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
 }
 
-.entity-sources {
-  margin-left: auto;
+.entity-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.entity-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  display: block;
+}
+
+.entity-desc {
   font-size: 12px;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+
+.entity-meta {
+  flex-shrink: 0;
+}
+
+.confidence-badge {
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Detail */
+.detail-content {
+  padding: 16px 0;
+}
+
+.detail-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.detail-label {
+  color: var(--text-muted);
+  font-size: 13px;
+  min-width: 60px;
+}
+
+.detail-value {
+  color: var(--text-primary);
+  font-size: 13px;
+  flex: 1;
+}
+
+/* Keywords Layout */
+.keywords-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.keywords-cloud-card {
+  min-height: 400px;
+}
+
+.keywords-cloud {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.keyword-tag {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.keyword-tag:hover {
+  background: linear-gradient(135deg, rgba(74,222,128,0.2) 0%, rgba(74,222,128,0.05) 100%);
+  border-color: rgba(74,222,128,0.3);
+  color: #4ade80;
+  transform: translate(-50%, -50%) scale(1.1) !important;
+  z-index: 10;
+}
+
+.keywords-trend {
+  height: 400px;
+  padding: 16px;
+}
+
+.keywords-trend-card {
+  min-height: 400px;
+}
+
+/* Graph */
+.graph-legend {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.d3-graph-container {
+  position: relative;
+  width: 100%;
+  height: 450px;
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.d3-graph-svg {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.d3-graph-svg:active {
+  cursor: grabbing;
+}
+
+:deep(.node) {
+  cursor: pointer;
+}
+
+:deep(.node circle),
+:deep(.node rect) {
+  transition: all 0.2s;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+:deep(.node-label) {
+  pointer-events: none;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.link) {
+  transition: stroke-opacity 0.2s;
+}
+
+.trends-chart {
+  height: 250px;
+  padding: 16px;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px;
   color: var(--text-muted);
 }
 
-/* Path Results */
-.path-item {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-color);
+.result-count {
   font-size: 13px;
-}
-
-.path-item:last-child {
-  border-bottom: none;
-}
-
-.path-node {
-  color: var(--text-primary);
-}
-
-.path-sep {
   color: var(--text-muted);
 }
 
@@ -886,496 +1169,14 @@ export default {
   font-size: 18px;
   cursor: pointer;
   color: var(--text-muted);
-  padding: 0 4px;
 }
 
 .btn-close:hover {
   color: var(--text-primary);
 }
 
-/* Entity Sidebar */
-.entity-sidebar {
-  position: fixed;
-  top: 80px;
-  right: 20px;
-  width: 360px;
-  max-height: calc(100vh - 100px);
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  z-index: 100;
-  overflow: hidden;
+.graph-controls {
   display: flex;
-  flex-direction: column;
-}
-
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.sidebar-header h3 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.sidebar-content {
-  padding: 16px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.detail-row {
-  margin-bottom: 12px;
-}
-
-.detail-label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
-
-.detail-value {
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.related-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
-}
-
-.related-section h4 {
-  margin: 0 0 10px 0;
-  font-size: 13px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.related-item {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.related-item:hover {
-  background: var(--bg-tertiary);
-}
-
-.event-item {
-  padding: 8px;
-  border-radius: 6px;
-  margin-bottom: 6px;
-  background: var(--bg-tertiary);
-}
-
-.event-title {
-  display: block;
-  font-size: 13px;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.event-category {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-/* Entity Distribution */
-.entity-types {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.entity-type {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--bg-tertiary);
-  border-radius: 8px;
-  transition: transform 0.2s;
-}
-
-.entity-type:hover {
-  transform: translateX(4px);
-}
-
-.entity-icon {
-  font-size: 24px;
-  width: 40px;
-  text-align: center;
-}
-
-.entity-info {
-  flex: 1;
-  min-width: 120px;
-}
-
-.entity-name {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.entity-count {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--type-color);
-}
-
-.entity-bar {
-  flex: 1;
-  height: 8px;
-  background: var(--bg-primary);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.entity-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--type-color), transparent);
-  border-radius: 4px;
-  transition: width 0.5s ease;
-}
-
-/* Lists */
-.entity-list, .relation-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.entity-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.entity-item:last-child {
-  border-bottom: none;
-}
-
-.entity-item.clickable {
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.entity-item.clickable:hover {
-  background: var(--bg-tertiary);
-}
-
-.entity-type-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  color: #fff;
-  font-weight: 500;
-}
-
-.entity-relations {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.relation-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.relation-item:last-child {
-  border-bottom: none;
-}
-
-.relation-type {
-  font-weight: 500;
-}
-
-.relation-count {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-/* Graph Section */
-.graph-section {
-  margin-bottom: 24px;
-}
-
-.graph-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.graph-header h3 {
-  margin: 0;
-}
-
-/* Graph Preview */
-.graph-preview {
-  position: relative;
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
-  border-radius: 12px;
-  overflow: hidden;
-  min-height: 400px;
-}
-
-.graph-svg {
-  width: 100%;
-  height: 400px;
-}
-
-.connection-line {
-  stroke: var(--text-muted);
-  stroke-width: 2;
-  stroke-dasharray: 5, 5;
-  animation: dash 20s linear infinite;
-}
-
-@keyframes dash {
-  to {
-    stroke-dashoffset: -1000;
-  }
-}
-
-.node-circle {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-  transition: r 0.3s;
-}
-
-.node {
-  cursor: pointer;
-}
-
-.node:hover .node-circle {
-  r: 25;
-}
-
-.node-label {
-  fill: var(--text-primary);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.graph-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 400px;
-  color: var(--text-muted);
-}
-
-.graph-overlay {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  padding: 8px 16px;
-  background: var(--bg-secondary);
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--text-muted);
-  box-shadow: 0 2px 8px var(--shadow);
-}
-
-/* Time value */
-.stat-card .value.time {
-  font-size: 24px;
-}
-
-/* Toast */
-.toast {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  padding: 16px 24px;
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  animation: slideIn 0.3s ease;
-  z-index: 1000;
-  border-left: 4px solid var(--accent);
-}
-
-.toast.warning {
-  border-left-color: #fbbf24;
-}
-
-.toast-icon {
-  font-size: 20px;
-}
-
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .stats-overview {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-
-  .stat-item {
-    padding: 14px;
-  }
-
-  .stat-number {
-    font-size: 24px;
-  }
-
-  .stat-label {
-    font-size: 12px;
-  }
-
-  .entities-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .entity-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .entity-actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
-  .entity-title {
-    font-size: 14px;
-  }
-
-  .entity-meta {
-    font-size: 12px;
-  }
-
-  .entity-bar {
-    height: 8px;
-  }
-
-  .entity-bar-fill {
-    height: 100%;
-  }
-
-  .entity-content {
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .graph-svg {
-    height: 300px;
-  }
-
-  .graph-preview {
-    min-height: 300px;
-  }
-
-  .graph-empty {
-    height: 300px;
-  }
-
-  .related-entities-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
-
-  .related-entity-card {
-    padding: 10px;
-  }
-
-  .related-entity-name {
-    font-size: 12px;
-  }
-
-  .related-entity-type {
-    font-size: 10px;
-  }
-}
-
-@media (max-width: 480px) {
-  .stats-overview {
-    grid-template-columns: 1fr;
-  }
-
-  .stat-item {
-    padding: 12px;
-  }
-
-  .stat-number {
-    font-size: 20px;
-  }
-
-  .stat-label {
-    font-size: 11px;
-  }
-
-  .stat-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-  }
-
-  .entity-card {
-    padding: 12px;
-  }
-
-  .entity-content {
-    font-size: 12px;
-  }
-
-  .entity-tags {
-    flex-wrap: wrap;
-  }
-
-  .entity-tag {
-    font-size: 10px;
-    padding: 2px 6px;
-  }
-
-  .graph-svg {
-    height: 250px;
-  }
-
-  .graph-preview {
-    min-height: 250px;
-  }
-
-  .graph-empty {
-    height: 250px;
-    font-size: 14px;
-  }
-
-  .node-label {
-    font-size: 10px;
-  }
-
-  .related-entities-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .toast-container {
-    left: 10px;
-    right: 10px;
-  }
-
-  .toast {
-    padding: 10px 12px;
-  }
 }
 </style>

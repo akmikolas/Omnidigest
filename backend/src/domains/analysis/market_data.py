@@ -298,3 +298,88 @@ class MarketDataService:
         except Exception as e:
             logger.error(f"Error getting market session: {e}")
             return "unknown"
+
+    def get_index_history(self, symbol: str, period: str = "1m") -> dict:
+        """
+        获取指数历史K线数据
+
+        Args:
+            symbol: 指数代码 (sh000001 沪指, sz399001 深证成指)
+            period: 时间范围 1d/1w/1m/3m，1d返回分钟级数据
+
+        Returns:
+            {"dates": [...], "prices": [...], "volume": [...]}
+        """
+        _disable_proxy()
+        try:
+            # 1d 返回分钟级当日数据
+            if period == "1d":
+                return self.get_index_intraday(symbol)
+
+            # 其他周期返回日线数据
+            period_days = {
+                "1w": 30,
+                "1m": 90,
+                "3m": 180,
+            }
+            days = period_days.get(period, 90)
+
+            # 使用 stock_zh_index_daily 获取指数数据
+            # symbol 格式: sh000001 (上证), sz399001 (深证)
+            df = ak.stock_zh_index_daily(symbol=symbol)
+
+            if df is None or df.empty:
+                logger.warning(f"No historical data for {symbol}")
+                return {"dates": [], "prices": [], "volume": []}
+
+            # 转换日期格式并过滤
+            df['date'] = pd.to_datetime(df['date'])
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            df = df[df['date'] >= start_date]
+
+            # 返回数据
+            return {
+                "dates": df["date"].dt.strftime("%Y-%m-%d").tolist(),
+                "prices": df["close"].tolist(),
+                "volume": df["volume"].tolist() if "volume" in df.columns else [],
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching index history for {symbol}: {e}")
+            return {"dates": [], "prices": [], "volume": []}
+        finally:
+            _restore_proxy()
+
+    def get_index_intraday(self, symbol: str) -> dict:
+        """
+        获取指数当日分钟级数据
+
+        Args:
+            symbol: 指数代码 (sh000001 沪指, sz399001 深证成指)
+
+        Returns:
+            {"dates": [...], "prices": [...], "volume": [...]}
+        """
+        _disable_proxy()
+        try:
+            # 使用 stock_zh_a_minute 获取分钟级数据
+            # period='5' 表示5分钟K线
+            df = ak.stock_zh_a_minute(symbol=symbol, period='5', adjust='')
+
+            if df is None or df.empty:
+                logger.warning(f"No intraday data for {symbol}")
+                return {"dates": [], "prices": [], "volume": []}
+
+            # 返回分钟级数据
+            return {
+                "dates": df["day"].tolist(),
+                "prices": df["close"].tolist(),
+                "volume": df["volume"].tolist(),
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching intraday data for {symbol}: {e}")
+            return {"dates": [], "prices": [], "volume": []}
+        finally:
+            _restore_proxy()

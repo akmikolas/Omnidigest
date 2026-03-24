@@ -910,6 +910,149 @@ class DgraphClient:
         uid = response.uids.get("entity", "")
         return uid
 
+    def get_top_countries_with_entities(self, top_n: int = 5) -> dict:
+        """
+        查询新闻最多的N个国家及其关联的实体和事件。
+        Returns the top N countries by event count with linked persons and events.
+
+        Args:
+            top_n: 返回的国家数量，默认 5
+
+        Returns:
+            {"nodes": [...], "links": [...]}
+        """
+        txn = self.client.txn(read_only=True)
+        try:
+            # 第一步：查询所有国家
+            all_countries_query = """
+            {
+                locations(func: type(Location)) {
+                    uid
+                    name
+                }
+            }
+            """
+
+            res = txn.query(all_countries_query)
+            data = json.loads(res.json)
+            locations = data.get("locations", [])
+
+            # 第二步：对每个国家查询其事件数量
+            location_counts = []
+            for loc in locations:
+                uid = loc.get("uid")
+                name = loc.get("name", "Unknown")
+                if not uid:
+                    continue
+                # 查询该国家的事件数量
+                count_query = """
+                {
+                    check(func: uid(%s)) {
+                        cnt: count(~located_at)
+                    }
+                }
+                """ % uid
+                count_res = txn.query(count_query)
+                count_data = json.loads(count_res.json)
+                count = count_data.get("check", [{}])[0].get("cnt", 0)
+                location_counts.append({"uid": uid, "name": name, "count": count})
+
+            # 在 Python 中按事件数量排序并取前 N 个
+            sorted_locations = sorted(location_counts, key=lambda x: x.get("count", 0), reverse=True)[:top_n]
+
+            nodes = []
+            links = []
+            seen_node_ids = set()
+
+            for location in sorted_locations:
+                country_uid = location.get("uid")
+                country_name = location.get("name", "Unknown")
+                news_count = location.get("count", 0)
+
+                if not country_uid:
+                    continue
+
+                # 添加国家节点
+                country_id = f"country_{country_uid}"
+                nodes.append({
+                    "id": country_id,
+                    "type": "country",
+                    "name": country_name,
+                    "news_count": news_count,
+                })
+                seen_node_ids.add(country_id)
+
+                # 第三步：查询该国家关联的事件和人物（限制每个国家最多5个事件）
+                detail_query = """
+                {
+                    country(func: uid(%s)) {
+                        ~located_at(orderdesc: event_date, first: 5) {
+                            uid
+                            title
+                            involves_person(orderdesc: confidence, first: 3) {
+                                uid
+                                name
+                            }
+                        }
+                    }
+                }
+                """ % country_uid
+
+                detail_res = txn.query(detail_query)
+                detail_data = json.loads(detail_res.json)
+                country_detail = detail_data.get("country", [])
+
+                if not country_detail:
+                    continue
+
+                for event in country_detail[0].get("~located_at", []):
+                    event_uid = event.get("uid")
+                    event_title = event.get("title", "Unknown Event")
+                    if not event_uid:
+                        continue
+
+                    event_id = f"event_{event_uid}"
+                    if event_id not in seen_node_ids:
+                        nodes.append({
+                            "id": event_id,
+                            "type": "event",
+                            "name": event_title,
+                        })
+                        seen_node_ids.add(event_id)
+
+                    # 国家 -> 事件 链接
+                    links.append({
+                        "source": country_id,
+                        "target": event_id,
+                        "type": "located_at",
+                    })
+
+                    # 事件 -> 关联人物 链接
+                    for person in event.get("involves_person", []):
+                        person_uid = person.get("uid")
+                        person_name = person.get("name", "Unknown")
+                        if not person_uid:
+                            continue
+
+                        person_id = f"person_{person_uid}"
+                        if person_id not in seen_node_ids:
+                            nodes.append({
+                                "id": person_id,
+                                "type": "person",
+                                "name": person_name,
+                            })
+                            seen_node_ids.add(person_id)
+
+                        links.append({
+                            "source": person_id,
+                            "target": event_id,
+                            "type": "involves",
+                        })
+
+            return {"nodes": nodes, "links": links}
+        finally:
+            txn.discard()
+
     def close(self):
         """Closes the gRPC connection. / 关闭 gRPC 连接。"""
         self.stub.close()

@@ -2043,6 +2043,55 @@ async def search_kg_path(
     return result
 
 
+@router.get("/kg/countries/entities")
+async def get_top_countries_with_entities(top_n: int = 5):
+    """
+    获取新闻最多的国家及其关联的实体和事件。
+    Get countries with most news and their linked persons/events.
+    """
+    import asyncio
+    from ..domains.knowledge_graph.dgraph_client import DgraphClient
+
+    cache_key = f"omnidigest:kg:countries:entities:top_n={top_n}"
+    ttl = 600  # 10 minutes
+
+    def fetch_data():
+        try:
+            client = DgraphClient()
+            result = client.get_top_countries_with_entities(top_n)
+            client.close()
+            return result
+        except Exception as e:
+            logger.error(f"KG Countries Entities Error: {e}")
+            return {"nodes": [], "links": []}
+
+    async def background_refresh():
+        """Background task to refresh cache without blocking response"""
+        try:
+            result = await asyncio.to_thread(fetch_data)
+            cache.set(cache_key, result, ttl=ttl)
+            logger.info(f"KG cache background refresh completed for {cache_key}")
+        except Exception as e:
+            logger.warning(f"KG cache background refresh failed: {e}")
+
+    # Try to get from cache first
+    cached = cache.get(cache_key)
+    if cached is not None:
+        remaining_ttl = cache.get_ttl(cache_key)
+        # If TTL > 20% remaining (120s), return cached data
+        if remaining_ttl > int(ttl * 0.2):
+            return cached
+        # TTL is low, trigger background refresh but still return cached data
+        logger.info(f"KG cache TTL low ({remaining_ttl}s), triggering background refresh")
+        asyncio.create_task(background_refresh())
+        return cached
+
+    # Cache miss - must fetch fresh data
+    result = await asyncio.to_thread(fetch_data)
+    cache.set(cache_key, result, ttl=ttl)
+    return result
+
+
 # ============================================================================
 # A股市场数据 API
 # A-share market data API endpoints
@@ -2637,4 +2686,68 @@ async def get_alert_status():
         "push_dingtalk": getattr(settings, 'astock_alert_push_dingtalk', True)
     }
     cache.set(cache_key, result, ttl=60)
+    return result
+
+
+# ============================================================================
+# 指数历史走势 API
+# A-share index historical trend API
+# ============================================================================
+
+@router.get("/astock/indices/history")
+async def get_index_history(symbols: str = "sh000001,sz399001", period: str = "1m"):
+    """
+    获取指数历史K线数据
+    Get historical K-line data for indices
+
+    Args:
+        symbols: 逗号分隔的指数代码，默认 "sh000001,sz399001"
+        period: 时间范围 1d/1w/1m/3m，默认 "1m"
+    """
+    import asyncio
+    from ..domains.analysis.market_data import MarketDataService
+
+    cache_key = f"omnidigest:astock:indices:history:symbols={symbols}:period={period}"
+    ttl = 120  # 2 minutes
+
+    def fetch_data():
+        """Fetch index history data synchronously"""
+        try:
+            service = MarketDataService()
+            symbol_list = [s.strip() for s in symbols.split(",")]
+            result = {"dates": []}
+            for symbol in symbol_list:
+                data = service.get_index_history(symbol, period)
+                result[symbol] = data.get("prices", [])
+                if not result["dates"]:
+                    result["dates"] = data.get("dates", [])
+            return result
+        except Exception as e:
+            logger.error(f"Error fetching index history: {e}")
+            return {"dates": [], "error": str(e)}
+
+    async def background_refresh():
+        """Background task to refresh cache without blocking response"""
+        try:
+            result = await asyncio.to_thread(fetch_data)
+            cache.set(cache_key, result, ttl=ttl)
+            logger.info(f"Index history cache background refresh completed for {cache_key}")
+        except Exception as e:
+            logger.warning(f"Index history cache background refresh failed: {e}")
+
+    # Try to get from cache first
+    cached = cache.get(cache_key)
+    if cached is not None:
+        remaining_ttl = cache.get_ttl(cache_key)
+        # If TTL > 20% remaining (24s), return cached data
+        if remaining_ttl > int(ttl * 0.2):
+            return cached
+        # TTL is low, trigger background refresh but still return cached data
+        logger.info(f"Index history cache TTL low ({remaining_ttl}s), triggering background refresh")
+        asyncio.create_task(background_refresh())
+        return cached
+
+    # Cache miss - must fetch fresh data
+    result = await asyncio.to_thread(fetch_data)
+    cache.set(cache_key, result, ttl=ttl)
     return result
