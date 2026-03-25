@@ -273,9 +273,12 @@ class NotificationManager:
         import asyncio
         import concurrent.futures
 
+        # Get all DingTalk channels enabled for this event type
         target_channels = self._get_enabled_channels(event_type)
+        # Filter to only DingTalk channels
+        dingtalk_channels = {k: v for k, v in target_channels.items() if k.startswith('dingtalk')}
 
-        if not target_channels:
+        if not dingtalk_channels:
             logger.warning(f"No DingTalk channels enabled for {event_type}")
             return
 
@@ -284,9 +287,11 @@ class NotificationManager:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                return loop.run_until_complete(
-                    self.send_event(event_type, summary_data, channels=["dingtalk"], title=title)
-                )
+                # Send to all dingtalk channels
+                for key in dingtalk_channels:
+                    loop.run_until_complete(
+                        self.send_event(event_type, summary_data, channels=[key], title=title)
+                    )
             finally:
                 loop.close()
 
