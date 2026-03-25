@@ -279,29 +279,21 @@ class NotificationManager:
             logger.warning(f"No DingTalk channels enabled for {event_type}")
             return
 
-        try:
-            # Check if we're in an async context
+        def _run_sync():
+            """Run send_event in a new event loop."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                running_loop = asyncio.get_running_loop()
-            except RuntimeError:
-                running_loop = None
+                return loop.run_until_complete(
+                    self.send_event(event_type, summary_data, channels=["dingtalk"], title=title)
+                )
+            finally:
+                loop.close()
 
-            if running_loop is not None:
-                # We're in an async context - use threadsafe approach
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(
-                        asyncio.run,
-                        self.send_event(event_type, summary_data, channels=["dingtalk"], title=title)
-                    )
-                    future.result()
-            else:
-                # We're in a sync context
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
-                finally:
-                    loop.close()
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_run_sync)
+                return future.result()
         except Exception as e:
             logger.error(f"Error in push_to_dingtalk: {e}")
 
@@ -319,28 +311,20 @@ class NotificationManager:
             logger.warning(f"No Telegram channels enabled for {event_type}")
             return
 
-        try:
-            # Check if we're in an async context
+        def _run_sync():
+            """Run send_event in a new event loop."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                running_loop = asyncio.get_running_loop()
-            except RuntimeError:
-                running_loop = None
+                return loop.run_until_complete(
+                    self.send_event(event_type, summary_data)
+                )
+            finally:
+                loop.close()
 
-            if running_loop is not None:
-                # We're in an async context - use threadsafe approach
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(
-                        asyncio.run,
-                        self.send_event(event_type, summary_data)
-                    )
-                    future.result()
-            else:
-                # We're in a sync context
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(self.send_event(event_type, summary_data))
-                finally:
-                    loop.close()
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_run_sync)
+                return future.result()
         except Exception as e:
             logger.error(f"Error in push_to_telegram: {e}")
