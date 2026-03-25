@@ -84,16 +84,32 @@ class BreakingAlerter:
             "is_update": is_update
         }
 
-        # 1. Telegram Push
+        # Run notifications concurrently using asyncio.gather
+        # Both send_telegram_sync and push_to_dingtalk are sync functions that
+        # create their own event loops internally, so we run them in executor threads
+        tasks = []
+
         if settings.breaking_push_telegram:
             tg_html = self.pusher.render_template('telegram_breaking.html.j2', payload)
-            await asyncio.to_thread(self.pusher.send_telegram, tg_html)
+            loop = asyncio.get_event_loop()
+            # Use run_in_executor to avoid blocking the event loop
+            tasks.append(loop.run_in_executor(
+                None,  # use default executor
+                lambda: self.pusher.send_telegram(tg_html)
+            ))
 
-        # 2. DingTalk Push
         if settings.breaking_push_dingtalk:
             prefix = "📢更新" if is_update else "🔴突发"
             title = f"{prefix}: {story['story_title']}"
-            await asyncio.to_thread(self.pusher.push_to_dingtalk, title, payload, event_type="breaking")
+            loop = asyncio.get_event_loop()
+            tasks.append(loop.run_in_executor(
+                None,
+                lambda: self.pusher.push_to_dingtalk(title, payload, event_type="breaking")
+            ))
+
+        # Wait for all notifications to complete
+        if tasks:
+            await asyncio.gather(*tasks)
 
     async def run_alerter_loop(self, interval_seconds: int = 60):
         """
