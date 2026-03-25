@@ -268,8 +268,10 @@ class NotificationManager:
     def push_to_dingtalk(self, title: str, summary_data: dict, event_type: str = "daily"):
         """
         Backward compatible DingTalk send.
+        Works when called from both sync and async contexts.
         """
         import asyncio
+        import concurrent.futures
 
         target_channels = self._get_enabled_channels(event_type)
 
@@ -278,21 +280,38 @@ class NotificationManager:
             return
 
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Schedule in existing loop
-                asyncio.create_task(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
+            # Check if we're in an async context
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop is not None:
+                # We're in an async context - use threadsafe approach
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self.send_event(event_type, summary_data, channels=["dingtalk"], title=title)
+                    )
+                    future.result()
             else:
-                loop.run_until_complete(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
+                # We're in a sync context
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(self.send_event(event_type, summary_data, channels=["dingtalk"], title=title))
+                finally:
+                    loop.close()
+        except Exception as e:
+            logger.error(f"Error in push_to_dingtalk: {e}")
 
     def push_to_telegram(self, summary_data: dict, event_type: str = "daily"):
         """
         Backward compatible Telegram push.
+        Works when called from both sync and async contexts.
         """
         import asyncio
+        import concurrent.futures
 
         target_channels = self._get_enabled_channels(event_type)
 
@@ -301,11 +320,27 @@ class NotificationManager:
             return
 
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self.send_event(event_type, summary_data))
+            # Check if we're in an async context
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop is not None:
+                # We're in an async context - use threadsafe approach
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self.send_event(event_type, summary_data)
+                    )
+                    future.result()
             else:
-                loop.run_until_complete(self.send_event(event_type, summary_data))
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self.send_event(event_type, summary_data))
+                # We're in a sync context
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(self.send_event(event_type, summary_data))
+                finally:
+                    loop.close()
+        except Exception as e:
+            logger.error(f"Error in push_to_telegram: {e}")
