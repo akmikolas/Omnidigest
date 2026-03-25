@@ -1,6 +1,7 @@
 """
 DingTalk (钉钉) notification channel implementation.
 """
+import asyncio
 import hmac
 import hashlib
 import base64
@@ -109,7 +110,12 @@ class DingTalkChannel(NotificationChannel):
         }
 
         try:
-            response = requests.post(url, json=payload)
+            # Use run_in_executor to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: requests.post(url, json=payload)
+            )
             response.raise_for_status()
             result = response.json()
 

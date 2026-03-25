@@ -1,6 +1,7 @@
 """
 Telegram notification channel implementation.
 """
+import asyncio
 import re
 import logging
 from typing import Optional, Dict
@@ -101,13 +102,21 @@ class TelegramChannel(NotificationChannel):
                 payload["reply_markup"] = reply_markup
 
             try:
-                response = requests.post(url, json=payload)
+                # Use run_in_executor to avoid blocking the event loop
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: requests.post(url, json=payload)
+                )
                 response.raise_for_status()
 
                 # Try HTML first, on 400 fallback to plain
                 if response.status_code == 400:
                     payload.pop("parse_mode")
-                    response = requests.post(url, json=payload)
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda: requests.post(url, json=payload)
+                    )
                     response.raise_for_status()
 
                 logger.info(f"Telegram chunk {i + 1}/{len(chunks)} sent.")
