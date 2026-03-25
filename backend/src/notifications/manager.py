@@ -68,6 +68,7 @@ class NotificationManager:
                 config = DingTalkChannelConfig(
                     token=robot.token,
                     secret=robot.secret,
+                    keyword=robot.keyword,
                     enable_daily=robot.enable_daily,
                     enable_breaking=robot.enable_breaking,
                     enable_twitter=robot.enable_twitter,

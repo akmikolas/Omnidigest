@@ -138,17 +138,39 @@ class TelegramChannel(NotificationChannel):
     ) -> SendResult:
         """
         Synchronous send for backward compatibility.
+        Handles being called from both sync and async contexts.
         """
         import asyncio
+        import concurrent.futures
+
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Create a new loop if we're in an async context
-                loop = asyncio.new_event_loop()
-                return loop.run_until_complete(self.send(content, title, **kwargs))
+            # Try to get the running loop
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop is not None:
+                # We're in an async context - use run_coroutine_threadsafe from a thread pool
+                # This avoids the "running loop" issue
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self.send(content, title, **kwargs)
+                    )
+                    return future.result()
             else:
-                return loop.run_until_complete(self.send(content, title, **kwargs))
-        except RuntimeError:
-            # No event loop, create one
-            loop = asyncio.new_event_loop()
-            return loop.run_until_complete(self.send(content, title, **kwargs))
+                # We're in a sync context - use get_event_loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(self.send(content, title, **kwargs))
+                finally:
+                    loop.close()
+        except Exception as e:
+            logger.error(f"Telegram send_sync failed: {e}")
+            return SendResult(
+                success=False,
+                channel=self.channel_name,
+                error=str(e)
+            )

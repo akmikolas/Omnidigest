@@ -21,6 +21,7 @@ class DingTalkChannelConfig(ChannelConfig):
     """Configuration for DingTalk channel."""
     token: str = ""
     secret: str = ""  # HMAC-SHA256 signing secret
+    keyword: str = ""  # Security keyword that must appear in message content
 
 
 class DingTalkChannel(NotificationChannel):
@@ -94,6 +95,10 @@ class DingTalkChannel(NotificationChannel):
         if self._config.secret:
             timestamp, sign = self._sign()
             url += f"&timestamp={timestamp}&sign={sign}"
+
+        # Prepend keyword if configured (DingTalk security requirement)
+        if self._config.keyword:
+            content = f"{self._config.keyword}\n\n{content}"
 
         payload = {
             "msgtype": "markdown",

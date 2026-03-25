@@ -14,6 +14,7 @@ class DingRobotConfig(BaseModel):
     """
     token: str
     secret: str = ""
+    keyword: str = ""  # 安全关键词，消息内容必须包含此关键词
     enable_daily: bool = True
     daily_template: str = "dingtalk_default.md.j2"
     enable_breaking: bool = True
