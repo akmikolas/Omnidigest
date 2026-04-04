@@ -8,6 +8,7 @@ from pathlib import Path
 from .channels.base import NotificationChannel, SendResult
 from .channels.telegram import TelegramChannel, TelegramChannelConfig
 from .channels.dingtalk import DingTalkChannel, DingTalkChannelConfig
+from .channels.feishu import FeishuChannel, FeishuChannelConfig
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,24 @@ class NotificationManager:
                 )
                 self._channels[key] = DingTalkChannel(config)
 
+        # Feishu channels
+        for i, robot in enumerate(settings.feishu_robots):
+            if robot.webhook_url:
+                key = f"feishu_{i}" if len(settings.feishu_robots) > 1 else "feishu"
+                config = FeishuChannelConfig(
+                    webhook_url=robot.webhook_url,
+                    secret=robot.secret,
+                    enable_daily=robot.enable_daily,
+                    enable_breaking=robot.enable_breaking,
+                    enable_twitter=robot.enable_twitter,
+                    enable_astock=robot.enable_astock,
+                    daily_template=robot.daily_template,
+                    breaking_template=robot.breaking_template,
+                    twitter_template=robot.twitter_template,
+                    astock_template=robot.astock_template,
+                )
+                self._channels[key] = FeishuChannel(config)
+
         logger.info(f"Initialized {len(self._channels)} notification channels")
 
     def render_template(self, template_name: str, data: dict) -> str:
@@ -125,6 +144,12 @@ class NotificationManager:
                 "breaking": "dingtalk_breaking.md.j2",
                 "twitter": "dingtalk_twitter_alert.md.j2",
                 "astock": "dingtalk_astock_pre_market.md.j2",
+            },
+            "feishu": {
+                "daily": "feishu_default.md.j2",
+                "breaking": "feishu_breaking.md.j2",
+                "twitter": "feishu_twitter_alert.md.j2",
+                "astock": "feishu_astock.md.j2",
             },
         }
 
@@ -333,3 +358,40 @@ class NotificationManager:
                 return future.result()
         except Exception as e:
             logger.error(f"Error in push_to_telegram: {e}")
+
+    def push_to_feishu(self, title: str, summary_data: dict, event_type: str = "daily"):
+        """
+        Backward compatible Feishu push.
+        Works when called from both sync and async contexts.
+        """
+        import asyncio
+        import concurrent.futures
+
+        # Get all Feishu channels enabled for this event type
+        target_channels = self._get_enabled_channels(event_type)
+        # Filter to only Feishu channels
+        feishu_channels = {k: v for k, v in target_channels.items() if k.startswith('feishu')}
+
+        if not feishu_channels:
+            logger.warning(f"No Feishu channels enabled for {event_type}")
+            return
+
+        def _run_sync():
+            """Run send_event in a new event loop."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                # Send to all feishu channels
+                for key in feishu_channels:
+                    loop.run_until_complete(
+                        self.send_event(event_type, summary_data, channels=[key], title=title)
+                    )
+            finally:
+                loop.close()
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_run_sync)
+                return future.result()
+        except Exception as e:
+            logger.error(f"Error in push_to_feishu: {e}")

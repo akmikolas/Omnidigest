@@ -122,8 +122,19 @@ class NotificationService:
                 _get_manager().send_message(content, channels=["dingtalk"], title=title)
             )
 
+    def push_to_feishu(self, title: str, summary_data: dict, event_type: str = "daily"):
+        """
+        Send a rendered summary to all configured Feishu robots.
+
+        Args:
+            title: Message title.
+            summary_data: The payload dictionary required by the template.
+            event_type: "daily", "breaking", "twitter", etc.
+        """
+        _get_manager().push_to_feishu(title, summary_data, event_type)
+
     @property
     def robots(self):
         """Backward compatible property - returns configured robots."""
         from ..config import settings
-        return settings.tg_robots + settings.ding_robots
+        return settings.tg_robots + settings.ding_robots + settings.feishu_robots

@@ -1,4 +1,4 @@
-.PHONY: help db-init db-migrate rss-add rss-check test-tg test-dingtalk test-push trigger-summary cleanup
+.PHONY: help db-init db-migrate rss-add rss-check test-tg test-dingtalk test-feishu test-push trigger-summary cleanup
 
 PYTHON = python
 MANAGE = src/omnidigest/manage.py
@@ -12,6 +12,7 @@ help:
 	@echo "  make rss-check       : Check and list disabled RSS feeds"
 	@echo "  make test-tg         : Send manual breaking news push to Telegram only"
 	@echo "  make test-dingtalk   : Send manual breaking news push to DingTalk only"
+	@echo "  make test-feishu     : Send manual breaking news push to Feishu only"
 	@echo "  make test-push       : Send manual breaking news push to ALL platforms"
 	@echo "  make trigger-summary : Trigger the daily summary LLM job"
 	@echo "  make cleanup         : Run the low-quality article cleanup job"
@@ -48,6 +49,9 @@ test-tg:
 
 test-dingtalk:
 	$(PYTHON) $(MANAGE) jobs test-breaking-push --platform dingtalk
+
+test-feishu:
+	$(PYTHON) $(MANAGE) jobs test-breaking-push --platform feishu
 
 test-push:
 	$(PYTHON) $(MANAGE) jobs test-breaking-push

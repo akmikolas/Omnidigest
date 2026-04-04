@@ -1,0 +1,22 @@
+**🐦 Twitter 情报预警**
+
+{% for event in events %}
+### {{ event.event_title }}
+
+📅 **时间**: {{ event.created_at.strftime('%Y-%m-%d %H:%M') if event.created_at else '' }}
+
+📌 **分类**: {{ event.category }}
+
+⚡ **重要性**: {{ event.peak_score }}/100
+
+**摘要**:
+{{ event.summary }}
+
+{% if event.tweet_count and event.tweet_count > 1 %}
+📊 **推文数**: {{ event.tweet_count }}
+{% endif %}
+
+---
+{% endfor %}
+
+*由 OmniDigest Twitter 监控引擎自动生成*

@@ -107,7 +107,7 @@ def main():
     jobs_subparsers.add_parser("cleanup", help="Trigger low quality article cleanup")
     
     test_push_parser = jobs_subparsers.add_parser("test-breaking-push", help="Test formatted push of the latest breaking news")
-    test_push_parser.add_argument("--platform", choices=['dingtalk', 'tg', 'telegram', 'all'], default='all', help="Platform to test (default: all)")
+    test_push_parser.add_argument("--platform", choices=['dingtalk', 'tg', 'telegram', 'feishu', 'all'], default='all', help="Platform to test (default: all)")
 
     # Auth Commands
     auth_parser = subparsers.add_parser("auth", help="Authentication and API Key management")

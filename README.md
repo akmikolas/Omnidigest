@@ -50,6 +50,7 @@ OmniDigest is a fully automated, AI-driven news intelligence platform that trans
 │  ┌─────────────┐           ┌─────────────┐           ┌─────────────┐     │
 │  │  Telegram   │           │  Real-Time  │           │   Dgraph    │     │
 │  │  DingTalk   │           │   Alerts    │           │   Storage   │     │
+│  │  Feishu     │           │             │           │             │     │
 │  └─────────────┘           └─────────────┘           └─────────────┘     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -194,7 +195,7 @@ A complete automated news processing workflow:
 
 1. **Intelligent Crawling** - Parallel RSS fetching with auto-disable for failing feeds
 2. **One-Pass Classification** - Unified LLM batch classification into 7 categories
-3. **AI Summarization** - Bilingual Jinja2 templates for Telegram HTML & DingTalk Markdown
+3. **AI Summarization** - Bilingual Jinja2 templates for Telegram HTML, DingTalk & Feishu Markdown
 4. **Auto Cleanup** - Daily removal of low-quality articles
 
 ### 4.2 Breaking News System
@@ -269,6 +270,7 @@ LLM_MODEL_NAME=gpt-4o-mini
 # Notifications
 TG_ROBOTS='[{"bot_token": "...", "chat_id": "...", ...}]'
 DING_ROBOTS='[{"token": "...", ...}]'
+FEISHU_ROBOTS='[{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/...", "secret": "...", ...}]'
 ```
 
 ### Optional
@@ -294,6 +296,7 @@ make trigger-summary   # Trigger daily summary
 make cleanup           # Clean low-quality articles
 make test-tg           # Test Telegram push
 make test-dingtalk     # Test DingTalk push
+make test-feishu       # Test Feishu push
 make test-push         # Test all platforms
 ```
 

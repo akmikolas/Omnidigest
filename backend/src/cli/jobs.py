@@ -83,3 +83,8 @@ def test_breaking_push(args):
         pusher.send_telegram(tg_html)
         print("✅ Telegram push complete.")
 
+    if platform in ['feishu', 'all']:
+        title = f"🔴突发新闻: {event['event_title']}"
+        pusher.push_to_feishu(title, payload, event_type="breaking")
+        print("✅ Feishu push complete.")
+

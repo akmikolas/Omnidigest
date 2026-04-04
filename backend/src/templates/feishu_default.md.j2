@@ -1,0 +1,14 @@
+**科技动态综述**
+{{ overview }}
+
+{% for category in categories %}
+### {{ category.emoji }} {{ category.category_name }}
+{% if category.critique %}> *{{ category.critique }}*
+
+{% endif %}
+{% for article in category.articles %}- **{{ article.chinese_title }}**
+
+{% endfor %}
+---
+
+{% endfor %}

@@ -40,6 +40,23 @@ class TgRobotConfig(BaseModel):
     enable_astock: bool = True
     astock_template: str = "telegram_astock_pre_market.html.j2"
 
+
+class FeishuRobotConfig(BaseModel):
+    """
+    Configuration for a single Feishu (飞书) robot.
+    单个飞书机器人的配置。
+    """
+    webhook_url: str  # Full webhook URL, e.g. https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+    secret: str = ""  # HMAC-SHA256 signing secret
+    enable_daily: bool = True
+    daily_template: str = "feishu_default.md.j2"
+    enable_breaking: bool = True
+    breaking_template: str = "feishu_breaking.md.j2"
+    enable_twitter: bool = True
+    twitter_template: str = "feishu_twitter_alert.md.j2"
+    enable_astock: bool = True
+    astock_template: str = "feishu_astock.md.j2"
+
 class Settings(BaseSettings):
     """
     Global configuration settings for OmniDigest using pydantic_settings.
@@ -71,6 +88,7 @@ class Settings(BaseSettings):
     # ==========================
     ding_robots: list[DingRobotConfig] = Field(default_factory=list, env="DING_ROBOTS")
     tg_robots: list[TgRobotConfig] = Field(default_factory=list, env="TG_ROBOTS")
+    feishu_robots: list[FeishuRobotConfig] = Field(default_factory=list, env="FEISHU_ROBOTS")
 
     # Twitter Alerts Control
     enable_twitter_alerts: bool = Field(default=True, env="ENABLE_TWITTER_ALERTS")

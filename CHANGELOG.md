@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.25] - 2026-04-05
+
+### Added
+- **Feishu (飞书) Notification Channel**: New push notification support
+  - Custom robot webhook integration
+  - HMAC-SHA256 signature verification (timestamp + sign in JSON body)
+  - Supports daily/breaking/twitter/astock notifications
+  - 4 built-in templates: feishu_default, feishu_breaking, feishu_twitter_alert, feishu_astock
+- **Feishu CLI Test Command**: `make test-feishu` for testing Feishu push
+
+### Fixed
+- **Nginx Config**: Fixed API proxy configuration for docker-compose deployment
+
+---
+
 ## [2.3.5] - 2026-03-19
 
 ### Added
