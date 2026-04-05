@@ -1,39 +1,46 @@
-**📈 A股盘前简报**
+📈 **A股市场简报**
+
+---
 
 {% if shanghai or shenzhen %}
-### 大盘指数
-{% endif %}
+## 大盘指数
+
 {% if shanghai %}
-- **上证指数**: {{ shanghai.price }} ({{ shanghai.change }}%)
+• **上证指数**: {{ shanghai.price }} ({{ shanghai.change }}%)
 {% endif %}
 {% if shenzhen %}
-- **深证成指**: {{ shenzhen.price }} ({{ shenzhen.change }}%)
+• **深证成指**: {{ shenzhen.price }} ({{ shenzhen.change }}%)
+{% endif %}
 {% endif %}
 
 {% if market_sentiment %}
-### 市场情绪
+## 市场情绪
+
 {{ market_sentiment }}
 {% endif %}
 
 {% if analysis %}
-### AI 分析
+## AI 分析
+
 {% if analysis.overall_sentiment %}
-**整体情绪**: {{ analysis.overall_sentiment }}
+• **整体情绪**: {{ analysis.overall_sentiment }}
 {% endif %}
 {% if analysis.shanghai %}
-**上证预期**: {{ analysis.shanghai.direction }} (置信度: {{ analysis.shanghai.confidence }}%)
+• **上证预期**: {{ analysis.shanghai.direction }} (置信度: {{ analysis.shanghai.confidence }}%)
 {% endif %}
 {% if analysis.shenzhen %}
-**深证预期**: {{ analysis.shenzhen.direction }} (置信度: {{ analysis.shenzhen.confidence }}%)
+• **深证预期**: {{ analysis.shenzhen.direction }} (置信度: {{ analysis.shenzhen.confidence }}%)
 {% endif %}
 {% endif %}
 
 {% if top_sectors %}
-### 热门板块
+## 热门板块
+
 {% for sector in top_sectors[:5] %}
-- {{ sector.name }}: {{ sector.change }}%
+• {{ sector.name }}: {{ sector.change }}%
 {% endfor %}
 {% endif %}
 
 ---
-*由 OmniDigest A股分析引擎自动生成*
+
+_由 OmniDigest A股分析引擎自动生成_

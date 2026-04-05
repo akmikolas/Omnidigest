@@ -1,14 +1,25 @@
-**科技动态综述**
+📬 **OmniDigest 科技日报**
+{{ custom_title_prefix }}
+
+---
+
 {{ overview }}
 
+---
+
 {% for category in categories %}
-### {{ category.emoji }} {{ category.category_name }}
-{% if category.critique %}> *{{ category.critique }}*
+## {{ category.emoji }}  {{ category.category_name }}
 
+{% if category.critique %}
+💬 {{ category.critique }}
 {% endif %}
-{% for article in category.articles %}- **{{ article.chinese_title }}**
 
+{% for article in category.articles %}
+• [{{ article.chinese_title }}]({{ article.original_url }})
 {% endfor %}
+
 ---
 
 {% endfor %}
+
+_由 OmniDigest 自动生成_
