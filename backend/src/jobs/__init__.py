@@ -186,16 +186,17 @@ Your task is to review all today's high-scoring articles, summarize them, and ge
 Respond STRICTLY with the requested Structured Output based on the schema mapping.
 """
 
-async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = True, custom_title_prefix: str = ""):
+async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = True, push_feishu: bool = True, custom_title_prefix: str = ""):
     """
-    Generates the daily news summary using parallel LLM fragment generation. Constructs the target dictionary natively in Python and dispatches to Telegram and DingTalk.
-    使用并行的 LLM 片段生成来生成每日新闻总结。在 Python 中原生构建目标字典，并分发到 Telegram 和钉钉。
-    
+    Generates the daily news summary using parallel LLM fragment generation. Constructs the target dictionary natively in Python and dispatches to Telegram, DingTalk, and Feishu.
+    使用并行的 LLM 片段生成来生成每日新闻总结。在 Python 中原生构建目标字典，并分发到 Telegram、钉钉和飞书。
+
     Args:
         push_telegram (bool, optional): Whether to push to Telegram. Defaults to True. / 是否推送到 Telegram。默认为 True。
         push_dingtalk (bool, optional): Whether to push to DingTalk. Defaults to True. / 是否推送到钉钉。默认为 True。
+        push_feishu (bool, optional): Whether to push to Feishu. Defaults to True. / 是否推送到飞书。默认为 True。
     """
-    logger.info(f"Starting unified daily summary generation... (TG: {push_telegram}, DingTalk: {push_dingtalk})")
+    logger.info(f"Starting unified daily summary generation... (TG: {push_telegram}, DingTalk: {push_dingtalk}, Feishu: {push_feishu})")
     
     articles = db.get_high_score_articles(hours=24, min_score=60)
     if not articles:
@@ -319,6 +320,14 @@ async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = Tr
             logger.info("Daily summary pushed to DingTalk.")
         except Exception as e:
             logger.error(f"Failed pushing summary to DingTalk: {e}")
+
+    if push_feishu and settings.feishu_robots:
+        try:
+            title = f"{custom_title_prefix}每日科技新闻"
+            pusher.push_to_feishu(title, summary_data, event_type="daily")
+            logger.info("Daily summary pushed to Feishu.")
+        except Exception as e:
+            logger.error(f"Failed pushing summary to Feishu: {e}")
 
     return summary_data
 
