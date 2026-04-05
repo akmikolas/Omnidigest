@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.29] - 2026-04-05
+
+### Fixed
+- **Feishu Template**: 优化飞书日报排版，减少多余空行
+- **Feishu Markdown**: 支持 markdown 标题渲染（## 二级标题、### 三级标题）
+
+---
+
 ## [2.3.25] - 2026-04-05
 
 ### Added
