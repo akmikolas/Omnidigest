@@ -143,6 +143,7 @@ class FeishuChannel(NotificationChannel):
         Parse a single line of markdown-like content into Feishu tags.
 
         Handles:
+        - ### Heading1, ## Heading2, ### Heading3 -> bold with emoji prefix
         - **bold** or <b>bold</b>
         - [text](url)
         - Regular text (may contain **bold** inline)
@@ -152,17 +153,27 @@ class FeishuChannel(NotificationChannel):
         """
         tags: List[Dict] = []
 
-        # Handle inline markdown: **bold** and [text](url)
-        # Pattern: markdown link [text](url) or bold **text**
+        # Check for heading markers (### or ##)
+        heading_match = re.match(r'^(#{1,3})\s+(.+)$', line)
+        if heading_match:
+            level = len(heading_match.group(1))
+            heading_text = heading_match.group(2).strip()
 
-        # First, process all inline elements
-        # Pattern for links: [text](url)
-        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+            # Use emoji prefix to simulate heading level
+            if level == 1:
+                emoji = "📢 "
+            elif level == 2:
+                emoji = "📌 "
+            else:
+                emoji = "▪ "
 
-        # Pattern for bold: **text** or <b>text</b>
-        bold_pattern = r'\*\*([^*]+)\*\*|<b>([^<]+)</b>'
+            # Parse the heading text with inline formatting
+            inner_tags = self._parse_inline(heading_text)
+            tags.append({"tag": "text", "text": emoji})
+            tags.extend(inner_tags)
+            return tags
 
-        # We'll use a combined approach: split by special markers
+        # Parse inline elements (bold, links)
         combined_pattern = r'(\*\*[^*]+\*\*|<b>[^<]+</b>|\[[^\]]+\]\([^)]+\))'
         parts = re.split(combined_pattern, line)
 
@@ -184,7 +195,7 @@ class FeishuChannel(NotificationChannel):
                 tags.append({"tag": "a", "text": text, "href": href})
                 continue
 
-            # Check if it's a standalone URL (without markdown link format)
+            # Check if it's a standalone URL
             if part.startswith("http://") or part.startswith("https://"):
                 tags.append({"tag": "a", "text": part, "href": part})
                 continue
@@ -194,6 +205,31 @@ class FeishuChannel(NotificationChannel):
                 tags.append({"tag": "text", "text": part})
 
         return tags if tags else [{"tag": "text", "text": line}]
+
+    def _parse_inline(self, text: str) -> List[Dict]:
+        """Parse inline formatting (bold, links) within text."""
+        tags: List[Dict] = []
+        combined_pattern = r'(\*\*[^*]+\*\*|<b>[^<]+</b>|\[[^\]]+\]\([^)]+\))'
+        parts = re.split(combined_pattern, text)
+
+        for part in parts:
+            if not part:
+                continue
+
+            bold_match = re.match(r'\*\*([^*]+)\*\*$', part) or re.match(r'<b>([^<]+)</b>$', part)
+            if bold_match:
+                tags.append({"tag": "text", "text": bold_match.group(1), "bold": True})
+                continue
+
+            link_match = re.match(r'\[([^\]]+)\]\(([^)]+)\)$', part)
+            if link_match:
+                tags.append({"tag": "a", "text": link_match.group(1), "href": link_match.group(2)})
+                continue
+
+            if part.strip():
+                tags.append({"tag": "text", "text": part})
+
+        return tags if tags else [{"tag": "text", "text": text}]
 
     async def send(
         self,
