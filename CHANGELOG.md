@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.30] - 2026-04-06
+
+### Fixed
+- **alert_service.py**: 修复错误的导入路径
+  - `src.config` → `settings`
+  - `src.core.database` → `DatabaseManager`
+  - `.market_data` → 同目录模块
+  - `src.notifications` → `NotificationManager`
+- **twitter/db_repo.py**: 修复 `tweet_url` 列不存在问题
+  - `twitter_stream_raw` 表没有 `tweet_url` 列
+  - 改为使用 `author_screen_name` 和 `tweet_id` 构造 URL
+- **database.py**: 修复连接池可能导致 `None` 的问题
+  - `finally` 块中添加 `self._pool` None 检查
+  - 添加 try-except 保护 `putconn` 调用
+
+---
+
 ## [2.3.29] - 2026-04-05
 
 ### Fixed
