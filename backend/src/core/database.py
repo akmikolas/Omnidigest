@@ -175,11 +175,15 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
 
             yield conn
         finally:
-            # Return connection to pool
-            self._pool.putconn(conn)
+            # Return connection to pool (with safety check in case pool was closed)
+            if self._pool is not None:
+                try:
+                    self._pool.putconn(conn)
+                except Exception as e:
+                    logger.warning(f"Failed to return connection to pool: {e}")
+            # Clean up timestamp regardless
             with self._lock:
                 self._stats["total_checkins"] += 1
-                # Clean up timestamp
                 if id(conn) in self._connection_timestamps:
                     del self._connection_timestamps[id(conn)]
 

@@ -6,10 +6,10 @@ import logging
 import asyncio
 from datetime import datetime
 from typing import Optional, Dict, List
-from ..config import settings
-from ..core.database import DatabaseManager
-from ..domains.analysis.market_data import MarketDataService
-from ..notifications.pusher import NotificationService
+from src.config import settings
+from src.core.database import DatabaseManager
+from .market_data import MarketDataService
+from src.notifications.pusher import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +144,7 @@ class AStockAlertService:
         """
         import akshare as ak
         import pandas as pd
-        from ..domains.analysis.market_data import _disable_proxy, _restore_proxy
+        from .market_data import _disable_proxy, _restore_proxy
 
         anomalies = []
 
@@ -232,7 +232,7 @@ class AStockAlertService:
     async def _send_dingtalk(self, title: str, summary: str, anomalies: List[Dict]):
         """发送到钉钉"""
         try:
-            from ..notifications import NotificationManager
+            from src.notifications import NotificationManager
             manager = NotificationManager()
             # Send to all DingTalk channels
             await manager.send_message(
@@ -248,7 +248,7 @@ class AStockAlertService:
     async def _send_telegram(self, title: str, summary: str, anomalies: List[Dict]):
         """发送到 Telegram"""
         try:
-            from ..notifications import NotificationManager
+            from src.notifications import NotificationManager
             manager = NotificationManager()
             # Send to all Telegram channels
             await manager.send_message(

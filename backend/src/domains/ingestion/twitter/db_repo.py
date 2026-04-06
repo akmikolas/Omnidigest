@@ -409,7 +409,7 @@ class TwitterDbMixin:
         获取事件的所有推文链接和内容。
         """
         query = """
-        SELECT r.tweet_url, r.text
+        SELECT r.tweet_id, r.author_screen_name, r.raw_text as text
         FROM omnidigest.twitter_event_tweet_mapping m
         JOIN omnidigest.twitter_stream_raw r ON r.tweet_id = m.tweet_id
         WHERE m.event_id = %s
@@ -421,7 +421,15 @@ class TwitterDbMixin:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(query, (event_id, limit))
                     results = cur.fetchall()
-                    return [{'url': r['tweet_url'], 'text': r.get('text', '')} for r in results if r.get('tweet_url')]
+                    # Construct tweet URL from author_screen_name and tweet_id
+                    return [
+                        {
+                            'url': f"https://twitter.com/{r['author_screen_name']}/status/{r['tweet_id']}",
+                            'text': r.get('text', '')
+                        }
+                        for r in results
+                        if r.get('author_screen_name') and r.get('tweet_id')
+                    ]
         except Exception as e:
             logger.error(f"Error getting tweet URLs for event {event_id}: {e}")
             return []
