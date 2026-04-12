@@ -169,8 +169,8 @@ class LLMManager:
                 # Use MD_JSON or JSON for DashScope/Qwen models
                 mode = instructor.Mode.MD_JSON
             elif is_minimax:
-                # MiniMax API works better with JSON mode for structured output
-                mode = instructor.Mode.JSON
+                # MiniMax API works better with MD_JSON for OpenAI-compatible structured output
+                mode = instructor.Mode.MD_JSON
             
             # Patch native client with Instructor locally for this call
             instructor_client = instructor.from_openai(client, mode=mode)
