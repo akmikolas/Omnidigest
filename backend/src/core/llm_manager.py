@@ -161,12 +161,16 @@ class LLMManager:
             # Some providers (like DashScope/Qwen) are strictly OpenAI-compatible but fail on TOOLS mode.
             # We default to instructor.Mode.JSON for these for maximum stability.
             is_dashscope = "dashscope" in base_url.lower() or "aliyuncs.com" in base_url.lower()
-            
+            is_minimax = "minimaxi" in base_url.lower()
+
             # Determine best instructor mode
             mode = instructor.Mode.TOOLS
             if is_dashscope:
                 # Use MD_JSON or JSON for DashScope/Qwen models
                 mode = instructor.Mode.MD_JSON
+            elif is_minimax:
+                # MiniMax API works better with JSON_SCHEMA mode for structured output
+                mode = instructor.Mode.JSON_SCHEMA
             
             # Patch native client with Instructor locally for this call
             instructor_client = instructor.from_openai(client, mode=mode)

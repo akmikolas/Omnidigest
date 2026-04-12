@@ -130,6 +130,12 @@ class Settings(BaseSettings):
     breaking_context_recent_events: int = Field(default=3, env="BREAKING_CONTEXT_RECENT_EVENTS")  # Number of recent events to include in context
     breaking_context_active_stories: int = Field(default=10, env="BREAKING_CONTEXT_ACTIVE_STORIES")  # Number of active stories to include in context
 
+    # ==========================
+    # Breaking News 质量控制配置
+    # ==========================
+    breaking_min_content_length: int = Field(default=500, env="BREAKING_MIN_CONTENT_LENGTH")  # Content 最小长度，太短则跳过
+    breaking_max_title_retries: int = Field(default=1, env="BREAKING_MAX_TITLE_RETRIES")  # 空标题重试次数
+
     # Prompt templates for One-Pass processors (支持环境变量覆盖)
     prompt_breaking_onepass: str = Field(
         default="""You are a senior news editor and intelligence analyst. Your task is to analyze a new, raw intelligence stream and perform triage, scoring, clustering, and story matching SIMULTANEOUSLY.
@@ -155,6 +161,52 @@ class Settings(BaseSettings):
     【Active Stories (For Narrative Trajectory)】:
     {active_stories}""",
             env="PROMPT_BREAKING_ONEPASS"
+        )
+
+    # 英文内容专用 prompt - 强调翻译而非提取
+    prompt_breaking_onepass_english: str = Field(
+        default="""You are a senior news translator and editor. Your primary task is to TRANSLATE English news into accurate Chinese.
+
+### IMPORTANT RULES:
+1. ALWAYS translate the English content to Chinese first
+2. Extract a meaningful Chinese headline (5-15 characters) from the TRANSLATED content
+3. NEVER use "Breaking News" as a headline - it provides no information value
+4. If the content is too short to extract meaning, set is_breaking=false
+
+### INPUT DATA:
+【New Raw Stream】:
+{input_data}
+
+### OUTPUT (JSON):
+Return valid JSON with:
+- is_breaking: true if this is significant breaking news
+- event_title: Chinese headline (5-15 chars, NEVER "Breaking News")
+- summary: 1-2 sentence Chinese summary
+- category: [War & Conflict, International Relations, Macro Economics, Emergency/Disaster, Major Tech/Science, Other]
+- impact_score: 0-100
+- matched_event_id: UUID or null
+- matched_story_id: UUID or null""",
+            env="PROMPT_BREAKING_ONEPASS_ENGLISH"
+        )
+
+    # 空标题重试 prompt - 专门用于翻译和提取
+    prompt_breaking_onepass_retry: str = Field(
+        default="""You are a translator. Extract a meaningful Chinese title from this news content.
+
+### TASK:
+1. If the content is in English, translate it to Chinese first
+2. Then extract a concise Chinese headline (5-15 characters)
+3. IMPORTANT: Never output "Breaking News" as the title - this is forbidden
+
+### INPUT DATA:
+{input_data}
+
+### OUTPUT (JSON ONLY - no other text):
+Output ONLY valid JSON matching this exact format:
+{"is_breaking": true, "event_title": "actual Chinese headline (5-15 chars)", "summary": "Chinese summary", "category": "category name", "impact_score": 0-100, "matched_event_id": null, "matched_story_id": null}
+
+DO NOT include any explanatory text. Output only the JSON.""",
+            env="PROMPT_BREAKING_ONEPASS_RETRY"
         )
 
     prompt_twitter_onepass: str = Field(

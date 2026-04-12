@@ -410,3 +410,58 @@ class OnePassProcessor:
             result = await self.process(input_data, context_params)
             results.append(result)
         return results
+
+    async def process_with_custom_prompt(
+        self,
+        input_data: str,
+        custom_prompt_template: str,
+        context_params: Dict[str, Any] = None
+    ) -> Optional[BaseModel]:
+        """
+        Execute One-Pass analysis with a custom prompt template.
+        使用自定义提示词模板执行单次分析。
+
+        用于需要使用不同 prompt 的场景，如英文内容翻译。
+
+        Args:
+            input_data: The main input data to analyze. / 要分析的主输入数据。
+            custom_prompt_template: Custom prompt template string. / 自定义提示词模板字符串。
+            context_params (dict): Additional parameters for context providers. / 上下文提供者的额外参数。
+
+        Returns:
+            Validated Pydantic model result, or None on failure. / 验证后的 Pydantic 模型结果，失败返回 None。
+        """
+        try:
+            # Gather context from providers
+            params = context_params or {}
+            context = self._gather_context(input_data, **params)
+
+            # Build context text for custom prompt
+            context_parts = []
+            for name, text in context.items():
+                if text:
+                    context_parts.append(f"【{name.upper()}】:\n{text}")
+
+            full_context = "\n\n".join(context_parts) if context_parts else "No additional context."
+
+            # Format the custom prompt
+            prompt = custom_prompt_template.format(
+                input_data=input_data,
+                context=full_context,
+                **context  # Also pass individual context items
+            )
+
+            # Call LLM with structured output
+            result = await self.llm.chat_completion_structured(
+                response_model=self.config.response_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.config.temperature,
+                service_name=f"onepass_{self.config.name}"
+            )
+
+            logger.info(f"OnePass processor '{self.config.name}' (custom prompt) completed successfully")
+            return result
+
+        except Exception as e:
+            logger.error(f"OnePass processor '{self.config.name}' (custom prompt) failed: {e}")
+            return None

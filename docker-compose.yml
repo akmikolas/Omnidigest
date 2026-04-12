@@ -135,4 +135,5 @@ volumes:
 networks:
   omnidigest_network:
     driver: bridge
+    external: true
     name: omnidigest_network
