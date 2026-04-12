@@ -171,10 +171,14 @@ class LLMManager:
             elif is_minimax:
                 # MiniMax API works better with MD_JSON for OpenAI-compatible structured output
                 mode = instructor.Mode.MD_JSON
-            
+                # Disable MiniMax thinking to prevent mixed output with JSON
+                if 'extra_body' not in kwargs:
+                    kwargs['extra_body'] = {}
+                kwargs['extra_body']['thinking'] = {"type": "off"}
+
             # Patch native client with Instructor locally for this call
             instructor_client = instructor.from_openai(client, mode=mode)
-            
+
             try:
                 response, raw_completion = await instructor_client.chat.completions.create_with_completion(
                     model=model_name,
