@@ -258,11 +258,19 @@ DO NOT include any explanatory text. Output only the JSON.""",
     {input_data}
 
     ### OUTPUT (JSON):
-    Return a list of results, one per article, with fields:
-    - article_id: The original article ID from the input
-    - category: Category from the list above
-    - score: Relevance score (0-100)
-    - summary: One-sentence summary (max 50 words)""",
+    Return ONLY valid JSON with this exact structure:
+    {
+      "results": [
+        {
+          "article_id": "original article ID",
+          "category": "category from the list above",
+          "score": 0-100,
+          "summary": "One-sentence summary (max 50 words)"
+        },
+        ...
+      ]
+    }
+    Each article in the input must have exactly one result in the array.""",
             env="PROMPT_DAILY_ONEPASS"
         )
 
