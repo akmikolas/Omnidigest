@@ -169,8 +169,80 @@ class LLMManager:
                 # Use MD_JSON or JSON for DashScope/Qwen models
                 mode = instructor.Mode.MD_JSON
             elif is_minimax:
-                # MiniMax API works better with plain JSON mode
+                # MiniMax API - use direct call with manual JSON extraction
+                # because thinking tags interfere with instructor parsing
                 mode = instructor.Mode.JSON
+                # Disable MiniMax thinking
+                if 'extra_body' not in kwargs:
+                    kwargs['extra_body'] = {}
+                kwargs['extra_body']['thinking'] = {"type": "off"}
+
+                # For MiniMax, use direct API call with manual parsing
+                try:
+                    raw_response = await client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        temperature=temperature,
+                        **kwargs
+                    )
+                    content = raw_response.choices[0].message.content
+
+                    # Extract JSON from content - handle thinking tags
+                    import re
+                    import json as json_lib
+
+                    # Remove thinking tags
+                    clean_content = re.sub(r'</think>.*?</think>', '', content, flags=re.DOTALL)
+                    clean_content = clean_content.strip()
+
+                    # The JSON is likely at the end of clean content after all thinking
+                    # Find last '{' and parse from there
+                    last_brace = clean_content.rfind('{')
+                    if last_brace == -1:
+                        raise ValueError(f"No JSON object found in response: {clean_content}")
+
+                    # Try progressively from last_brace onwards
+                    json_str = None
+                    for end in range(last_brace, len(clean_content) + 1):
+                        candidate = clean_content[last_brace:end]
+                        try:
+                            parsed = json_lib.loads(candidate)
+                            if isinstance(parsed, dict):
+                                json_str = candidate
+                        except json_lib.JSONDecodeError:
+                            continue
+
+                    if json_str:
+                        parsed = json_lib.loads(json_str)
+                        response = response_model.model_validate(parsed)
+                    else:
+                        raise ValueError(f"Failed to parse JSON from content: {clean_content}")
+
+                    # Record usage
+                    if hasattr(raw_response, 'usage') and raw_response.usage:
+                        asyncio.create_task(
+                            asyncio.to_thread(
+                                self.db.record_token_usage,
+                                service_name,
+                                model['model_name'],
+                                raw_response.usage.prompt_tokens,
+                                raw_response.usage.completion_tokens,
+                                0
+                            )
+                        )
+
+                    # Reset failure count
+                    if model_id:
+                        await asyncio.to_thread(self.db.reset_llm_failure, model_id)
+
+                    return response
+
+                except Exception as e:
+                    last_error = e
+                    logger.error(f"MiniMax direct call failed: {e}")
+                    if model_id:
+                        await asyncio.to_thread(self.db.increment_llm_failure, model_id, str(e))
+                    raise
 
             # Patch native client with Instructor locally for this call
             instructor_client = instructor.from_openai(client, mode=mode)
