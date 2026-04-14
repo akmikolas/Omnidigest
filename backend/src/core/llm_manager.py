@@ -181,8 +181,30 @@ class LLMManager:
                     )
                     content = raw_response.choices[0].message.content
 
-                    # Parse JSON directly since response_format ensures clean JSON
-                    parsed = json.loads(content)
+                    # Try direct JSON parse first (works if response_format is respected)
+                    try:
+                        parsed = json.loads(content)
+                    except json.JSONDecodeError:
+                        # Fallback: strip thinking tags and try again
+                        clean_content = re.sub(r'</think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                        # Find JSON object
+                        last_brace = clean_content.rfind('{')
+                        if last_brace == -1:
+                            raise ValueError(f"No JSON object found in response: {clean_content[:200]}")
+                        json_str = None
+                        for end in range(last_brace, len(clean_content) + 1):
+                            candidate = clean_content[last_brace:end]
+                            try:
+                                parsed = json.loads(candidate)
+                                if isinstance(parsed, dict):
+                                    json_str = candidate
+                                    break
+                            except json.JSONDecodeError:
+                                continue
+                        if not json_str:
+                            raise ValueError(f"Failed to parse JSON from: {clean_content[:200]}")
+                        parsed = json.loads(json_str)
+
                     response = response_model.model_validate(parsed)
 
                     # Record usage
