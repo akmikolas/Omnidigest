@@ -181,29 +181,30 @@ class LLMManager:
                     )
                     content = raw_response.choices[0].message.content
 
-                    # Try direct JSON parse first (works if response_format is respected)
+                    # Try direct JSON parse first
                     try:
                         parsed = json.loads(content)
                     except json.JSONDecodeError:
-                        # Fallback: strip thinking tags and try again
-                        clean_content = re.sub(r'</think>.*?</think>', '', content, flags=re.DOTALL).strip()
-                        # Find JSON object
-                        last_brace = clean_content.rfind('{')
-                        if last_brace == -1:
-                            raise ValueError(f"No JSON object found in response: {clean_content[:200]}")
-                        json_str = None
-                        for end in range(last_brace, len(clean_content) + 1):
-                            candidate = clean_content[last_brace:end]
-                            try:
-                                parsed = json.loads(candidate)
-                                if isinstance(parsed, dict):
-                                    json_str = candidate
-                                    break
-                            except json.JSONDecodeError:
-                                continue
-                        if not json_str:
-                            raise ValueError(f"Failed to parse JSON from: {clean_content[:200]}")
-                        parsed = json.loads(json_str)
+                        # Fallback: find the LAST valid JSON dict in content
+                        # MiniMax outputs thinking text before the actual JSON at the end
+                        last_valid_json = None
+                        last_valid_start = -1
+
+                        # Find all { positions and try to parse valid JSON ending at each
+                        for start_pos in [i for i, c in enumerate(content) if c == '{']:
+                            for end_pos in range(start_pos + 1, len(content) + 1):
+                                candidate = content[start_pos:end_pos]
+                                try:
+                                    candidate_parsed = json.loads(candidate)
+                                    if isinstance(candidate_parsed, dict) and start_pos > last_valid_start:
+                                        last_valid_json = candidate_parsed
+                                        last_valid_start = start_pos
+                                except json.JSONDecodeError:
+                                    continue
+
+                        if last_valid_json is None:
+                            raise ValueError(f"No valid JSON object found in response: {content[:300]}")
+                        parsed = last_valid_json
 
                     response = response_model.model_validate(parsed)
 
