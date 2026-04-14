@@ -185,26 +185,28 @@ class LLMManager:
                     try:
                         parsed = json.loads(content)
                     except json.JSONDecodeError:
-                        # Fallback: find the LAST valid JSON dict in content
-                        # MiniMax outputs thinking text before the actual JSON at the end
-                        last_valid_json = None
-                        last_valid_start = -1
+                        # Fallback: find the LARGEST valid JSON dict in content
+                        # MiniMax may have thinking text with embedded JSON fragments
+                        # We want the one with most content (largest JSON object)
+                        largest_json = None
+                        largest_size = 0
+                        largest_parsed = None
 
-                        # Find all { positions and try to parse valid JSON ending at each
                         for start_pos in [i for i, c in enumerate(content) if c == '{']:
                             for end_pos in range(start_pos + 1, len(content) + 1):
                                 candidate = content[start_pos:end_pos]
                                 try:
                                     candidate_parsed = json.loads(candidate)
-                                    if isinstance(candidate_parsed, dict) and start_pos > last_valid_start:
-                                        last_valid_json = candidate_parsed
-                                        last_valid_start = start_pos
+                                    if isinstance(candidate_parsed, dict) and len(candidate) > largest_size:
+                                        largest_json = candidate
+                                        largest_size = len(candidate)
+                                        largest_parsed = candidate_parsed
                                 except json.JSONDecodeError:
                                     continue
 
-                        if last_valid_json is None:
+                        if largest_parsed is None:
                             raise ValueError(f"No valid JSON object found in response: {content[:300]}")
-                        parsed = last_valid_json
+                        parsed = largest_parsed
 
                     response = response_model.model_validate(parsed)
 
