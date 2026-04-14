@@ -159,7 +159,13 @@ class Settings(BaseSettings):
     {recent_events}
 
     【Active Stories (For Narrative Trajectory)】:
-    {active_stories}""",
+    {active_stories}
+
+    ### OUTPUT (JSON ONLY - no other text):
+    Output ONLY valid JSON matching this exact format:
+    {"is_breaking": true/false, "event_title": "Chinese headline (5-15 chars) or null", "summary": "1-2 sentence Chinese summary or null", "category": "category name or null", "impact_score": 0-100 or null, "matched_event_id": "UUID or null", "matched_story_id": "UUID or null"}
+
+    DO NOT include any explanatory text. Output only the JSON.""",
             env="PROMPT_BREAKING_ONEPASS"
         )
 
