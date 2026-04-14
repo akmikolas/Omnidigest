@@ -163,7 +163,7 @@ class Settings(BaseSettings):
 
     ### OUTPUT (JSON ONLY - no other text):
     Output ONLY valid JSON matching this exact format:
-    {"is_breaking": true/false, "event_title": "Chinese headline (5-15 chars) or null", "summary": "1-2 sentence Chinese summary or null", "category": "category name or null", "impact_score": 0-100 or null, "matched_event_id": "UUID or null", "matched_story_id": "UUID or null"}
+    {{"is_breaking": true/false, "event_title": "Chinese headline (5-15 chars) or null", "summary": "1-2 sentence Chinese summary or null", "category": "category name or null", "impact_score": 0-100 or null, "matched_event_id": "UUID or null", "matched_story_id": "UUID or null"}}
 
     DO NOT include any explanatory text. Output only the JSON.""",
             env="PROMPT_BREAKING_ONEPASS"
@@ -209,7 +209,7 @@ Return valid JSON with:
 
 ### OUTPUT (JSON ONLY - no other text):
 Output ONLY valid JSON matching this exact format:
-{"is_breaking": true, "event_title": "actual Chinese headline (5-15 chars)", "summary": "Chinese summary", "category": "category name", "impact_score": 0-100, "matched_event_id": null, "matched_story_id": null}
+{{"is_breaking": true, "event_title": "actual Chinese headline (5-15 chars)", "summary": "Chinese summary", "category": "category name", "impact_score": 0-100, "matched_event_id": null, "matched_story_id": null}}
 
 DO NOT include any explanatory text. Output only the JSON.""",
             env="PROMPT_BREAKING_ONEPASS_RETRY"
