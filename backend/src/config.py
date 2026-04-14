@@ -265,17 +265,17 @@ DO NOT include any explanatory text. Output only the JSON.""",
 
     ### OUTPUT (JSON):
     Return ONLY valid JSON with this exact structure:
-    {
+    {{
       "results": [
-        {
+        {{
           "article_id": "original article ID",
           "category": "category from the list above",
           "score": 0-100,
           "summary": "One-sentence summary (max 50 words)"
-        },
+        }},
         ...
       ]
-    }
+    }}
     Each article in the input must have exactly one result in the array.""",
             env="PROMPT_DAILY_ONEPASS"
         )
