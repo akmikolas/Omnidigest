@@ -195,28 +195,26 @@ class LLMManager:
                     clean_content = re.sub(r'</think>.*?</think>', '', content, flags=re.DOTALL)
                     clean_content = clean_content.strip()
 
-                    # The JSON is likely at the end of clean content after all thinking
-                    # Find last '{' and parse from there
-                    last_brace = clean_content.rfind('{')
-                    if last_brace == -1:
-                        raise ValueError(f"No JSON object found in response: {clean_content}")
-
-                    # Try progressively from last_brace onwards
+                    # Try to find the first valid JSON object (dict) by trying each '{' position
                     json_str = None
-                    for end in range(last_brace, len(clean_content) + 1):
-                        candidate = clean_content[last_brace:end]
-                        try:
-                            parsed = json_lib.loads(candidate)
-                            if isinstance(parsed, dict):
-                                json_str = candidate
-                        except json_lib.JSONDecodeError:
-                            continue
+                    parsed = None
+                    brace_positions = [i for i, c in enumerate(clean_content) if c == '{']
 
-                    if json_str:
-                        parsed = json_lib.loads(json_str)
-                        response = response_model.model_validate(parsed)
-                    else:
-                        raise ValueError(f"Failed to parse JSON from content: {clean_content}")
+                    for start_pos in brace_positions:
+                        for end_pos in range(start_pos + 1, len(clean_content) + 1):
+                            candidate = clean_content[start_pos:end_pos]
+                            try:
+                                candidate_parsed = json_lib.loads(candidate)
+                                if isinstance(candidate_parsed, dict) and len(candidate) > len(json_str or ""):
+                                    json_str = candidate
+                                    parsed = candidate_parsed
+                            except json_lib.JSONDecodeError:
+                                continue
+
+                    if not json_str or parsed is None:
+                        raise ValueError(f"No valid JSON object found in response: {clean_content[:500]}")
+
+                    response = response_model.model_validate(parsed)
 
                     # Record usage
                     if hasattr(raw_response, 'usage') and raw_response.usage:
