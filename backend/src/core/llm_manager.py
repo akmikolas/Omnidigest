@@ -50,7 +50,7 @@ class LLMManager:
         获取优先级最高的活动模型并初始化 OpenAI 客户端。
         """
         models = await asyncio.to_thread(self.db.get_active_llm_models)
-        
+
         # Filter out excluded IDs (models that failed in this session)
         if exclude_ids:
             models = [m for m in models if str(m['id']) not in exclude_ids]
@@ -92,7 +92,7 @@ class LLMManager:
         """
         if not content:
             return ""
-        
+
         # 1. Strip Markdown code blocks
         content = content.strip()
         if content.startswith("```json"):
@@ -101,9 +101,9 @@ class LLMManager:
             content = content[3:]
         if content.endswith("```"):
             content = content[:-3]
-            
+
         content = content.strip()
-        
+
         # 2. Handle DashScope/Qwen XML-like noise (e.g. <tool_call>...</tool_call>)
         # If we see <tool_call>, try to extract arguments from inside it
         if "<tool_call>" in content:
@@ -114,10 +114,10 @@ class LLMManager:
             match = re.search(r'\{.*\}', content, re.DOTALL)
             if match:
                 return match.group(0)
-            
+
             # If no JSON found but there's a parameter list, we might have to reconstruct it
             # But normally instructor.Mode.JSON avoids this XML stuff.
-        
+
         return content
 
     async def get_client_and_model(self, exclude_ids=None):
@@ -156,64 +156,33 @@ class LLMManager:
             model_id = model.get('id')
             base_url = model.get('base_url', '')
             model_name = model.get('model_name', '')
-            
+
             # Provider-specific mode selection
             # Some providers (like DashScope/Qwen) are strictly OpenAI-compatible but fail on TOOLS mode.
             # We default to instructor.Mode.JSON for these for maximum stability.
             is_dashscope = "dashscope" in base_url.lower() or "aliyuncs.com" in base_url.lower()
             is_minimax = "minimaxi" in base_url.lower()
 
-            # Determine best instructor mode
-            mode = instructor.Mode.TOOLS
-            if is_dashscope:
-                # Use MD_JSON or JSON for DashScope/Qwen models
-                mode = instructor.Mode.MD_JSON
-            elif is_minimax:
-                # MiniMax API - use direct call with manual JSON extraction
-                # because thinking tags interfere with instructor parsing
+            # MiniMax: Use response_format for clean JSON output
+            if is_minimax:
                 mode = instructor.Mode.JSON
                 # Disable MiniMax thinking
                 if 'extra_body' not in kwargs:
                     kwargs['extra_body'] = {}
                 kwargs['extra_body']['thinking'] = {"type": "off"}
 
-                # For MiniMax, use direct API call with manual parsing
                 try:
                     raw_response = await client.chat.completions.create(
                         model=model_name,
                         messages=messages,
                         temperature=temperature,
+                        response_format={"type": "json_object"},
                         **kwargs
                     )
                     content = raw_response.choices[0].message.content
 
-                    # Extract JSON from content - handle thinking tags
-                    import re
-                    import json as json_lib
-
-                    # Remove thinking tags
-                    clean_content = re.sub(r'</think>.*?</think>', '', content, flags=re.DOTALL)
-                    clean_content = clean_content.strip()
-
-                    # Try to find the first valid JSON object (dict) by trying each '{' position
-                    json_str = None
-                    parsed = None
-                    brace_positions = [i for i, c in enumerate(clean_content) if c == '{']
-
-                    for start_pos in brace_positions:
-                        for end_pos in range(start_pos + 1, len(clean_content) + 1):
-                            candidate = clean_content[start_pos:end_pos]
-                            try:
-                                candidate_parsed = json_lib.loads(candidate)
-                                if isinstance(candidate_parsed, dict) and len(candidate) > len(json_str or ""):
-                                    json_str = candidate
-                                    parsed = candidate_parsed
-                            except json_lib.JSONDecodeError:
-                                continue
-
-                    if not json_str or parsed is None:
-                        raise ValueError(f"No valid JSON object found in response: {clean_content[:500]}")
-
+                    # Parse JSON directly since response_format ensures clean JSON
+                    parsed = json.loads(content)
                     response = response_model.model_validate(parsed)
 
                     # Record usage
@@ -242,6 +211,11 @@ class LLMManager:
                         await asyncio.to_thread(self.db.increment_llm_failure, model_id, str(e))
                     raise
 
+            # Determine best instructor mode for non-MiniMax providers
+            mode = instructor.Mode.TOOLS
+            if is_dashscope:
+                mode = instructor.Mode.MD_JSON
+
             # Patch native client with Instructor locally for this call
             instructor_client = instructor.from_openai(client, mode=mode)
 
@@ -254,11 +228,11 @@ class LLMManager:
                     max_retries=max_retries,
                     **kwargs
                 )
-                
+
                 # Success! Reset failure count if it's a DB-tracked model
                 if model_id:
                     await asyncio.to_thread(self.db.reset_llm_failure, model_id)
-                
+
                 # Record token usage asynchronously
                 if hasattr(raw_completion, 'usage') and raw_completion.usage:
                     # Get cached tokens if available (DashScope supports this)
@@ -280,18 +254,18 @@ class LLMManager:
                             cached_tokens
                         )
                     )
-                
+
                 return response
 
             except Exception as e:
                 last_error = e
                 logger.error(f"Structured LLM Error with model '{model.get('name')}': {e}")
-                
+
                 # Report failure to DB
                 if model_id:
                     await asyncio.to_thread(self.db.increment_llm_failure, model_id, str(e))
                     excluded_ids.add(str(model_id))
-                
+
                 # Invalidate client and model to force a switch on next attempt
                 async with self._lock:
                     self._client = None
@@ -300,7 +274,7 @@ class LLMManager:
                 if attempt < max_attempts - 1:
                     logger.info(f"Retrying structured LLM completion (Attempt {attempt + 2}/{max_attempts})...")
                     await asyncio.sleep(1)
-                
+
         raise last_error
 
     async def chat_completion(self, messages, temperature=0.7, return_full_response=False, service_name="default", **kwargs):
@@ -325,7 +299,7 @@ class LLMManager:
         for attempt in range(max_attempts):
             client, model = await self.get_client_and_model(exclude_ids=excluded_ids)
             model_id = model.get('id')
-            
+
             try:
                 response = await client.chat.completions.create(
                     model=model['model_name'],
@@ -333,11 +307,11 @@ class LLMManager:
                     temperature=temperature,
                     **kwargs
                 )
-                
+
                 # Success! Reset failure count if it's a DB-tracked model
                 if model_id:
                     await asyncio.to_thread(self.db.reset_llm_failure, model_id)
-                
+
                 # Record token usage asynchronously
                 if hasattr(response, 'usage') and response.usage:
                     # Get cached tokens if available (DashScope supports this)
@@ -359,7 +333,7 @@ class LLMManager:
                             cached_tokens
                         )
                     )
-                
+
                 if return_full_response:
                     return response
                 return response.choices[0].message.content or ""
@@ -367,13 +341,13 @@ class LLMManager:
             except Exception as e:
                 last_error = e
                 logger.error(f"LLM Error with model '{model.get('name')}': {e}")
-                
+
                 # Report failure to DB
                 if model_id:
                     # Threshold for deactivation is 5 by default
                     await asyncio.to_thread(self.db.increment_llm_failure, model_id, str(e))
                     excluded_ids.add(str(model_id))
-                
+
                 # Invalidate client and model to force a switch on next attempt
                 async with self._lock:
                     self._client = None
@@ -382,6 +356,6 @@ class LLMManager:
                 if attempt < max_attempts - 1:
                     logger.info(f"Retrying LLM completion (Attempt {attempt + 2}/{max_attempts})...")
                     await asyncio.sleep(1) # Brief pause before retry
-                
+
         # If all attempts fail
         raise last_error
