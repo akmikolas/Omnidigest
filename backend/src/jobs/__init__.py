@@ -169,16 +169,17 @@ def _get_daily_context() -> str:
     return "\n".join(context_parts)
 
 UNIFIED_DAILY_SUMMARY_PROMPT = """
-You are a senior tech editor compiling a daily news digest for professionals. 
+You are a senior tech editor compiling a daily news digest for professionals.
 Your task is to review all today's high-scoring articles, summarize them, and generate a cohesive, structured report in ONE PASS.
 
 ### INSTRUCTIONS:
 1. **Overview**: Write an executive overview (`overview`) of today's tech news as a whole (in Chinese).
 2. **Category Critiques**: For each category provided, write a professional editorial critique (`critique`) summarizing the major trends of that specific category today (in Chinese).
 3. **Article Translation/Polishing**: For EVERY article provided in the input:
-   - Provide a translated or polished Chinese title (`title`).
+   - Keep the `id` unchanged from the input.
+   - Provide a translated or polished Chinese title (`chinese_title`).
    - Provide a concise Chinese summary (`summary`).
-   - YOU MUST include the exact `original_url` for every article so we can link them back to the database.
+   - Keep the `original_url` unchanged from the input.
 
 ### INPUT ARTICLES (Categorized):
 {context}
@@ -225,16 +226,16 @@ async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = Tr
             section = f"## Category: {cat}\n"
             for item in items:
                 desc = item.get('summary_raw') or item['content'][:200].replace('\n', ' ') + "..."
-                section += f"- Title: {item['title']}\n  URL: {item['source_url']}\n  Summary: {desc}\n"
+                section += f"- ID: {item['id']}\n  Title: {item['title']}\n  URL: {item['source_url']}\n  Summary: {desc}\n"
             context_parts.append(section)
-    
+
     # Add unmapped
     for cat, items in categorized_content.items():
         if cat not in category_order:
             section = f"## Category: {cat}\n"
             for item in items:
                 desc = item.get('summary_raw') or item['content'][:200].replace('\n', ' ') + "..."
-                section += f"- Title: {item['title']}\n  URL: {item['source_url']}\n  Summary: {desc}\n"
+                section += f"- ID: {item['id']}\n  Title: {item['title']}\n  URL: {item['source_url']}\n  Summary: {desc}\n"
             context_parts.append(section)
             
     prompt = UNIFIED_DAILY_SUMMARY_PROMPT.format(context="\n".join(context_parts))
