@@ -172,19 +172,42 @@ UNIFIED_DAILY_SUMMARY_PROMPT = """
 You are a senior tech editor compiling a daily news digest for professionals.
 Your task is to review all today's high-scoring articles, summarize them, and generate a cohesive, structured report in ONE PASS.
 
+### REQUIRED OUTPUT FORMAT:
+{{
+  "overview": "Executive overview in Chinese (2-3 sentences)",
+  "categories": [
+    {{
+      "category": "AI & LLMs",
+      "overview": "Category trend summary in Chinese",
+      "critique": "Sharp editorial critique in Chinese",
+      "articles": [
+        {{
+          "id": "exact ID from input",
+          "chinese_title": "Translated Chinese title",
+          "summary": "Chinese summary (max 300 chars)",
+          "original_url": "exact URL from input"
+        }}
+      ]
+    }}
+  ]
+}}
+
 ### INSTRUCTIONS:
 1. **Overview**: Write an executive overview (`overview`) of today's tech news as a whole (in Chinese).
-2. **Category Critiques**: For each category provided, write a professional editorial critique (`critique`) summarizing the major trends of that specific category today (in Chinese).
-3. **Article Translation/Polishing**: For EVERY article provided in the input:
-   - Keep the `id` unchanged from the input.
-   - Provide a translated or polished Chinese title (`chinese_title`).
-   - Provide a concise Chinese summary (`summary`).
-   - Keep the `original_url` unchanged from the input.
+2. **Categories**: For EACH category in the input, create ONE object in the `categories` array with:
+   - `category`: The category name (e.g., "AI & LLMs")
+   - `overview`: Summary of trends in Chinese
+   - `critique`: Sharp editorial commentary in Chinese
+   - `articles`: Array of article objects
+3. **Articles**: For EVERY article:
+   - Use EXACT `id` and `original_url` from the input
+   - Provide `chinese_title` (translate/polish to Chinese)
+   - Provide `summary` (Chinese summary)
 
 ### INPUT ARTICLES (Categorized):
 {context}
 
-Respond STRICTLY with the requested Structured Output based on the schema mapping.
+Respond ONLY with valid JSON matching the exact structure above.
 """
 
 async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = True, push_feishu: bool = True, custom_title_prefix: str = ""):
