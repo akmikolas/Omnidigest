@@ -25,12 +25,12 @@ class ArticleTranslation(BaseModel):
     单通结果中单篇文章翻译的模式。
     
     Attributes:
-        id (int): Original database ID of the article. / 文章的原始数据库 ID。
+        id (str): Original database ID of the article (UUID). / 文章的原始数据库 ID (UUID)。
         chinese_title (str): Translated or improved Chinese title. / 翻译或改进后的中文标题。
         summary (str): Translated or improved Chinese summary. / 翻译或改进后的中文摘要。
         original_url (str): The exact original source_url of this article. / 文章的准确原始源 URL。
     """
-    id: int
+    id: str
     chinese_title: str = Field(description="Translated or improved Chinese title.")
     summary: str = Field(description="Translated or improved Chinese summary (max 300 chars).")
     original_url: str = Field(description="The exact original source_url of this article to maintain mapping.")
