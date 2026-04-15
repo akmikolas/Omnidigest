@@ -120,6 +120,40 @@ class LLMManager:
 
         return content
 
+    def _extract_partial_json(self, content: str, response_model):
+        """
+        Attempt to extract partial data from an incomplete JSON response.
+        This is used when the LLM response is truncated and missing required fields.
+        尝试从不完整的 JSON 响应中提取部分数据。
+        """
+        # Find all valid JSON objects in the content
+        candidates = []
+        for start_pos in [i for i, c in enumerate(content) if c == '{']:
+            for end_pos in range(start_pos + 1, len(content) + 1):
+                candidate = content[start_pos:end_pos]
+                try:
+                    candidate_parsed = json.loads(candidate)
+                    if isinstance(candidate_parsed, dict):
+                        candidates.append((len(candidate), candidate_parsed))
+                except json.JSONDecodeError:
+                    continue
+
+        if not candidates:
+            return None
+
+        # Sort by size (largest first) and try to validate each
+        candidates.sort(key=lambda x: x[0], reverse=True)
+
+        for size, parsed in candidates:
+            try:
+                response = response_model.model_validate(parsed)
+                logger.info(f"[MiniMax API] Partial JSON validation succeeded with {size} chars")
+                return response
+            except Exception:
+                continue
+
+        return None
+
     async def get_client_and_model(self, exclude_ids=None):
         """
         Returns the current client and model metadata. Refreshes if needed or if current is excluded.
@@ -178,7 +212,7 @@ class LLMManager:
                     "model": model_name,
                     "messages": messages,
                     "temperature": temperature,
-                    "max_tokens": 4000,  # Ensure sufficient output for complex responses
+                    "max_tokens": 8000,  # Ensure sufficient output for complex responses
                 }
                 api_kwargs.update(kwargs)
                 logger.info(f"[MiniMax API Call] model={model_name}, temperature={temperature}, prompt_length={len(messages[0]['content']) if messages else 0}")
@@ -215,7 +249,23 @@ class LLMManager:
                             raise ValueError(f"No valid JSON object found in response: {content[:300]}")
                         parsed = largest_parsed
 
-                    response = response_model.model_validate(parsed)
+                    # Validate and handle partial/incomplete responses
+                    try:
+                        response = response_model.model_validate(parsed)
+                    except Exception as validation_error:
+                        # Check if this is a validation error due to missing fields (incomplete JSON)
+                        error_str = str(validation_error)
+                        if "Field required" in error_str or "validation error" in error_str.lower():
+                            logger.warning(f"[MiniMax API] Incomplete JSON response, attempting to find partial data. Error: {error_str[:200]}")
+                            # Try to find partial data - look for any JSON that has at least overview or categories
+                            partial = self._extract_partial_json(content, response_model)
+                            if partial:
+                                logger.info(f"[MiniMax API] Found partial valid data, using it")
+                                response = partial
+                            else:
+                                raise ValueError(f"Incomplete JSON response and no partial data found: {error_str[:200]}")
+                        else:
+                            raise
 
                     # Record usage
                     if hasattr(raw_response, 'usage') and raw_response.usage:
