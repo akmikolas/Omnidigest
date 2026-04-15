@@ -163,22 +163,29 @@ class LLMManager:
             is_dashscope = "dashscope" in base_url.lower() or "aliyuncs.com" in base_url.lower()
             is_minimax = "minimaxi" in base_url.lower()
 
-            # MiniMax: Use response_format for clean JSON output
+            # MiniMax: Use extra_body for JSON mode (MiniMax-native approach)
             if is_minimax:
                 mode = instructor.Mode.JSON
-                # Disable MiniMax thinking
+                # Build extra_body with MiniMax-native parameters
                 if 'extra_body' not in kwargs:
                     kwargs['extra_body'] = {}
-                kwargs['extra_body']['thinking'] = {"type": "off"}
+                kwargs['extra_body']['response_type'] = "json"
+                # Note: Remove thinking=off as it may cause issues with long prompts
+                # kwargs['extra_body']['thinking'] = {"type": "off"}
+
+                # Build API call kwargs - MiniMax does NOT use response_format
+                api_kwargs = {
+                    "model": model_name,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": 4000,  # Ensure sufficient output for complex responses
+                }
+                api_kwargs.update(kwargs)
+                logger.info(f"[MiniMax API Call] model={model_name}, temperature={temperature}, prompt_length={len(messages[0]['content']) if messages else 0}")
 
                 try:
-                    raw_response = await client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        temperature=temperature,
-                        response_format={"type": "json_object"},
-                        **kwargs
-                    )
+                    raw_response = await client.chat.completions.create(timeout=120.0, **api_kwargs)
+                    logger.info(f"[MiniMax API Response] status=received, content_length={len(raw_response.choices[0].message.content) if raw_response.choices[0].message.content else 0}")
                     content = raw_response.choices[0].message.content
 
                     # Try direct JSON parse first
@@ -231,7 +238,10 @@ class LLMManager:
 
                 except Exception as e:
                     last_error = e
-                    logger.error(f"MiniMax direct call failed: {e}")
+                    import traceback
+                    logger.error(f"[MiniMax API Error] Exception type: {type(e).__name__}")
+                    logger.error(f"[MiniMax API Error] Error message: {e}")
+                    logger.error(f"[MiniMax API Error] Traceback: {traceback.format_exc()}")
                     if model_id:
                         await asyncio.to_thread(self.db.increment_llm_failure, model_id, str(e))
                     raise

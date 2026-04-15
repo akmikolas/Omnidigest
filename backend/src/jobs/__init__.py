@@ -221,8 +221,9 @@ async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = Tr
         push_feishu (bool, optional): Whether to push to Feishu. Defaults to True. / 是否推送到飞书。默认为 True。
     """
     logger.info(f"Starting unified daily summary generation... (TG: {push_telegram}, DingTalk: {push_dingtalk}, Feishu: {push_feishu})")
-    
+
     articles = db.get_high_score_articles(hours=24, min_score=60)
+    logger.info(f"[Daily Summary] Retrieved {len(articles)} high-score articles from DB")
     if not articles:
         logger.warning("No high-scoring articles found for daily summary.")
         return
@@ -234,15 +235,17 @@ async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = Tr
         if cat not in categorized_content:
             categorized_content[cat] = []
         categorized_content[cat].append(art)
-        
+
     # Cap each category at 5 articles to keep the summary concise
     for cat in categorized_content:
         categorized_content[cat] = categorized_content[cat][:5]
-    
+
+    logger.info(f"[Daily Summary] Categorized into {len(categorized_content)} categories: {list(categorized_content.keys())}")
+
     # Construct Context for One-Pass LLM
     context_parts = []
     category_order = ["AI & LLMs", "Software Engineering", "Hardware & Semiconductors", "Cybersecurity", "Frontier Tech & Startups", "Web3", "Other"]
-    
+
     for cat in category_order:
         if cat in categorized_content:
             items = categorized_content[cat]
@@ -260,11 +263,14 @@ async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = Tr
                 desc = item.get('summary_raw') or item['content'][:200].replace('\n', ' ') + "..."
                 section += f"- ID: {item['id']}\n  Title: {item['title']}\n  URL: {item['source_url']}\n  Summary: {desc}\n"
             context_parts.append(section)
-            
+
     prompt = UNIFIED_DAILY_SUMMARY_PROMPT.format(context="\n".join(context_parts))
-    
+
+    logger.info(f"[Daily Summary] Constructed prompt, length={len(prompt)} chars, categories={len(context_parts)}")
+
     logger.info("Dispatching ONE-PASS LLM Daily Summary Generation...")
     llm_manager = get_llm_manager()
+
     try:
         result: DailySummaryResult = await llm_manager.chat_completion_structured(
             response_model=DailySummaryResult,
@@ -272,8 +278,11 @@ async def job_daily_summary(push_telegram: bool = True, push_dingtalk: bool = Tr
             temperature=0.2,
             service_name="daily_summary_generation"
         )
+        logger.info(f"[Daily Summary] LLM call succeeded, got result with overview='{result.overview[:50]}...' and {len(result.categories)} categories")
     except Exception as e:
-        logger.error(f"Failed to generate structured daily summary: {e}")
+        logger.error(f"[Daily Summary] Failed to generate structured daily summary: {e}")
+        import traceback
+        logger.error(f"[Daily Summary] Traceback: {traceback.format_exc()}")
         return
 
     # Python predefined mapping
