@@ -90,11 +90,13 @@ export const statsApi = {
 export const configApi = {
   getAll: () => api.get('/config'),
   getSection: (section) => api.get(`/config/${section}`),
+  getSections: () => api.get('/config/sections'),
   getValue: (section, key) => api.get(`/config/${section}/${key}`),
   updateSection: (section, items) => api.put(`/config/${section}`, items),
   create: (section, key, value, valueType = 'string', description = '') =>
     api.post('/config', { section, key, value, valueType, description }),
-  delete: (section, key) => api.delete(`/config/${section}/${key}`)
+  delete: (section, key) => api.delete(`/config/${section}/${key}`),
+  reloadConfig: (key = null) => api.post('/config/reload', null, { params: { key } })
 }
 
 // Sources API

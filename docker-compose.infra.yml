@@ -1,0 +1,81 @@
+# ===========================================
+# OmniDigest 基础设施 (Infrastructure Only)
+#
+# 开发/测试环境长期运行的基础设施服务。
+# 应用容器由 docker-compose.yml 独立管理。
+#
+# 启动: docker-compose -f docker-compose.infra.yml up -d
+# 停止: docker-compose -f docker-compose.infra.yml down
+# ===========================================
+
+services:
+  # ---- PostgreSQL ----
+  postgres:
+    image: postgres:16
+    container_name: omnidigest_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: frank
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: omnidigest
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - omnidigest_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frank"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- Redis ----
+  redis:
+    image: redis:8-alpine
+    container_name: omnidigest_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - omnidigest_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ---- Dgraph (可选, 未安装时注释掉) ----
+  # dgraph:
+  #   image: dgraph/standalone:latest
+  #   container_name: omnidigest_dgraph
+  #   restart: unless-stopped
+  #   environment:
+  #     TZ: Asia/Shanghai
+  #   ports:
+  #     - "8180:8080"
+  #     - "9080:9080"
+  #   volumes:
+  #     - dgraph_dev_data:/dgraph
+  #   networks:
+  #     - omnidigest_network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 20s
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+  # dgraph_dev_data:
+
+networks:
+  omnidigest_network:
+    driver: bridge
+    name: omnidigest_network

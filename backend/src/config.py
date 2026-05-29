@@ -391,3 +391,7 @@ DO NOT include any explanatory text. Output only the JSON.""",
     )
 
 settings = Settings()
+
+# LazySettings proxy - provides database-first config access
+# Will be initialized in main.py after database is ready
+lazy_settings = None

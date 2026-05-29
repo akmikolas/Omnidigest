@@ -2,6 +2,14 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim as builder
 
+# Proxy support — pass with: docker build --build-arg HTTP_PROXY=http://host:10809 ...
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
+
 # Set the working directory in the container
 WORKDIR /app
 
@@ -39,8 +47,18 @@ RUN pip install --no-cache-dir .
 # Start from a fresh image
 FROM python:3.11-slim
 
-# Install curl for healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# Proxy support
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
+
+# Install system dependencies for healthcheck and entrypoint
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
@@ -59,9 +77,21 @@ COPY --from=builder /opt/venv /opt/venv
 # Copy the rest of the application code
 COPY src src
 COPY src/templates templates
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+
+# Create data directory for bootstrap artifacts and non-root user
+RUN mkdir -p /data && chmod 755 /docker-entrypoint.sh && \
+    addgroup --system appgroup && \
+    adduser --system --no-create-home --ingroup appgroup appuser && \
+    chown -R appuser:appgroup /app /data
+
+# Switch to non-root user
+USER appuser:appgroup
 
 # Expose the port the app runs on
 EXPOSE 8080
 
-# Command to run the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
+    CMD curl -f http://localhost:8080/api/health || exit 1
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

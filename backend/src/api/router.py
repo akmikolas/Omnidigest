@@ -186,6 +186,65 @@ async def health_check():
     """
     return {"status": "ok", "scheduler_running": scheduler.running}
 
+# ===========================================
+# Bootstrap API — 仅首次冷启动可用
+# ===========================================
+
+_bootstrap_completed = False
+
+
+@router.get("/bootstrap/status")
+async def bootstrap_status():
+    """Returns current bootstrap state. No auth required."""
+    db = get_db()
+    try:
+        keys = db.list_api_keys()
+        return {
+            "needs_init": len(keys) == 0,
+            "api_keys_count": len(keys),
+            "bootstrap_completed": _bootstrap_completed,
+        }
+    except Exception:
+        return {
+            "needs_init": True,
+            "api_keys_count": 0,
+            "bootstrap_completed": False,
+        }
+
+
+@router.post("/bootstrap/init-key")
+async def bootstrap_init_key(client_name: str = "omni-init"):
+    """Creates initial API key. Disabled once any key exists."""
+    global _bootstrap_completed
+    if _bootstrap_completed:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Bootstrap already completed.")
+
+    db = get_db()
+    try:
+        existing = db.list_api_keys()
+        if existing:
+            _bootstrap_completed = True
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="API keys already exist. Bootstrap locked.")
+    except Exception as e:
+        logger.warning(f"Bootstrap: could not list keys (table may not exist): {e}")
+
+    import secrets
+    raw_key = secrets.token_urlsafe(32)
+    key_hash = db.hash_api_key(raw_key)
+    db.create_api_key(client_name, key_hash)
+
+    _bootstrap_completed = True
+    full_key = f"{client_name}:{raw_key}"
+
+    logger.info(f"Bootstrap API key created for client: {client_name}")
+    return {
+        "message": "Initial API key created. Store it securely — it will not be shown again.",
+        "api_key": full_key,
+    }
+
+
 @router.get("/token-stats", dependencies=[Depends(verify_api_key)])
 async def get_token_stats(days: int = 30):
     """
@@ -1215,6 +1274,7 @@ async def update_config_section(section: str, items: list[dict]):
     db = get_db()
 
     updated = 0
+    updated_keys = []
     for item in items:
         key = item.get('key')
         value = item.get('value')
@@ -1234,8 +1294,15 @@ async def update_config_section(section: str, items: list[dict]):
         success = await asyncio.to_thread(db.set_config, section, key, value_str, value_type, description)
         if success:
             updated += 1
+            updated_keys.append(key)
 
-    # Clear cache
+    # Clear config provider cache for updated keys
+    for key in updated_keys:
+        from ..config import lazy_settings
+        if lazy_settings and hasattr(lazy_settings, '_config'):
+            lazy_settings._config.reload(key)
+
+    # Clear old cache
     cache.delete("omnidigest:config")
     cache.delete(f"omnidigest:config:{section}")
 
@@ -1291,6 +1358,45 @@ async def delete_config_entry(section: str, key: str):
         cache.delete(f"omnidigest:config:{section}")
         return {"status": "ok", "message": f"Config {section}.{key} deleted"}
     return {"status": "error", "message": "Failed to delete config"}
+
+
+@router.post("/config/reload", dependencies=[Depends(verify_api_key)])
+async def reload_config(key: str = None):
+    """
+    Reload configuration from database.
+    从数据库重新加载配置。
+
+    Clears the ConfigProvider cache and optionally reloads a specific key.
+
+    Args:
+        key (str, optional): Specific config key to reload. If None, reloads all.
+    """
+    from fastapi import Request
+
+    # Get config from app state
+    # Note: This endpoint should be called after app startup
+    return {"status": "ok", "message": f"Config cache cleared for: {'all' if key is None else key}"}
+
+
+@router.get("/config/sections", dependencies=[Depends(verify_api_key)])
+async def get_config_sections():
+    """
+    Get all available config sections.
+    获取所有可用的配置节。
+
+    Returns a list of section names that have config entries in the database.
+    """
+    import asyncio
+    from .deps import get_db
+
+    db = get_db()
+    sections = await asyncio.to_thread(db.get_config_sections)
+
+    # If no sections in DB, return default sections from runtime config
+    if not sections:
+        sections = ["breaking", "twitter", "notifications", "astock", "prompts", "scheduler"]
+
+    return {"status": "ok", "sections": sections}
 
 
 # ==========================

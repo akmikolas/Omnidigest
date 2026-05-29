@@ -29,6 +29,8 @@ ENV/
 .env
 .env.*
 !.env.example
+!.env.dev
+!.env.production.example
 
 # IDE
 .idea/
@@ -36,6 +38,10 @@ ENV/
 
 # OmniDigest Specific
 postgres_data/
+
+# Internal improvement plans (not for distribution)
+docs/P0_IMPROVEMENT_PLAN.md
+docs/FIRST_LAUNCH_BOOTSTRAP.md
 
 # Testing
 .pytest_cache/

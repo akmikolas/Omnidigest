@@ -234,7 +234,7 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
         Returns:
             bool: True if all required tables exist (or were created), False otherwise. / 如果所有必需的表都存在（或已创建），则返回 True，否则返回 False。
         """
-        required_tables = ['news_articles', 'rss_sources', 'breaking_stream_raw', 'breaking_events', 'twitter_accounts', 'twitter_monitored_users']
+        required_tables = ['news_articles', 'rss_sources', 'breaking_stream_raw', 'breaking_events', 'twitter_accounts', 'twitter_monitored_users', 'api_keys', 'astock_predictions']
         try:
             # Open a connection and a cursor to execute queries
             # 打开连接和游标以执行查询
@@ -420,9 +420,15 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
                 reply_to_tweet_id VARCHAR(50),
                 metadata JSONB,
                 status SMALLINT DEFAULT 0,
+                impact_score INTEGER DEFAULT 0,
+                category VARCHAR(50),
+                summary_zh TEXT,
+                is_thread_start BOOLEAN DEFAULT FALSE,
                 "created_at" TIMESTAMP DEFAULT NOW()
             );
-            CREATE INDEX IF NOT EXISTS idx_twitter_stream_id ON {schema}.twitter_stream_raw(tweet_id);""",
+            CREATE INDEX IF NOT EXISTS idx_twitter_stream_id ON {schema}.twitter_stream_raw(tweet_id);
+            CREATE INDEX IF NOT EXISTS idx_twitter_stream_impact ON {schema}.twitter_stream_raw(impact_score);
+            CREATE INDEX IF NOT EXISTS idx_twitter_stream_status ON {schema}.twitter_stream_raw(status);""",
 
             f"""CREATE TABLE IF NOT EXISTS {schema}.llm_models (
                 id UUID PRIMARY KEY,
@@ -469,6 +475,15 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             );
             CREATE INDEX IF NOT EXISTS idx_sys_config_section ON {schema}.system_config(section);""",
 
+            f"""CREATE TABLE IF NOT EXISTS {schema}.api_keys (
+                id SERIAL PRIMARY KEY,
+                client_name VARCHAR(100) UNIQUE NOT NULL,
+                key_hash VARCHAR(255) NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                "created_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_api_keys_client ON {schema}.api_keys(client_name);""",
+
             f"""CREATE TABLE IF NOT EXISTS {schema}.twitter_events (
                 id UUID PRIMARY KEY,
                 event_title VARCHAR(512) NOT NULL,
@@ -496,6 +511,23 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             );
             CREATE INDEX IF NOT EXISTS idx_tetm_event ON {schema}.twitter_event_tweet_mapping(event_id);
             CREATE INDEX IF NOT EXISTS idx_tetm_tweet ON {schema}.twitter_event_tweet_mapping(tweet_id);""",
+
+            f"""CREATE TABLE IF NOT EXISTS {schema}.astock_predictions (
+                id UUID PRIMARY KEY,
+                prediction_date DATE NOT NULL,
+                index_type VARCHAR(20) NOT NULL,
+                prediction_type VARCHAR(20) NOT NULL,
+                prediction_direction VARCHAR(10) NOT NULL,
+                confidence_score INTEGER DEFAULT 50,
+                news_summary TEXT,
+                actual_close_change NUMERIC(10,4),
+                is_correct BOOLEAN,
+                "created_at" TIMESTAMP DEFAULT NOW(),
+                "updated_at" TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_astock_pred_date ON {schema}.astock_predictions(prediction_date);
+            CREATE INDEX IF NOT EXISTS idx_astock_pred_index ON {schema}.astock_predictions(index_type);
+            CREATE INDEX IF NOT EXISTS idx_astock_pred_type ON {schema}.astock_predictions(prediction_type);""",
         ]
         try:
             with self._get_connection() as conn:
@@ -532,6 +564,47 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
         except Exception as e:
             logger.error(f"Failed to create api_keys table: {e}")
             raise
+
+    def seed_llm_model_from_env(self) -> bool:
+        """
+        Auto-registers an LLM model from environment variables if none exist.
+        如果没有 LLM 模型，则从环境变量自动注册一个。
+
+        Returns:
+            bool: True if a model was registered, False otherwise. / 如果注册了模型则返回 True，否则返回 False。
+        """
+        import uuid
+
+        if not settings.llm_api_key:
+            logger.info("LLM_API_KEY not set, skipping auto LLM model registration.")
+            return False
+
+        existing = self.get_active_llm_models()
+        if existing:
+            logger.info(f"{len(existing)} LLM model(s) already configured, skipping auto-registration.")
+            return False
+
+        query = """
+        INSERT INTO omnidigest.llm_models (id, name, base_url, api_key, model_name, priority, is_active, input_price_per_m, output_price_per_m)
+        VALUES (%s, %s, %s, %s, %s, 100, TRUE, 15.0, 60.0)
+        ON CONFLICT DO NOTHING
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, (
+                        str(uuid.uuid4()),
+                        settings.llm_model_name,
+                        settings.llm_base_url,
+                        settings.llm_api_key,
+                        settings.llm_model_name,
+                    ))
+            conn.commit()
+            logger.info(f"LLM model auto-registered from env: {settings.llm_model_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to auto-register LLM model: {e}")
+            return False
 
     # ==========================
     # LLM Model Failover Methods
@@ -837,3 +910,238 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             logger.error(f"Failed to delete config: {e}")
             return False
 
+    # ==========================
+    # Config Provider Support Methods
+    # ==========================
+
+    def has_config_entries(self) -> bool:
+        """
+        Check if system_config table has any entries.
+
+        Returns:
+            True if table has at least one entry
+        """
+        query = """
+        SELECT 1 FROM omnidigest.system_config LIMIT 1
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query)
+                    return cur.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Failed to check config entries: {e}")
+            return False
+
+    def get_config_sections(self) -> list:
+        """
+        Get all distinct config sections.
+
+        Returns:
+            List of section names
+        """
+        query = """
+        SELECT DISTINCT section FROM omnidigest.system_config ORDER BY section
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query)
+                    return [row[0] for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to get config sections: {e}")
+            return []
+
+    def seed_default_config(self, settings_module=None):
+        """
+        Seed system_config from Settings defaults on first startup.
+
+        This reads all the pydantic Field definitions from Settings and
+        populates the database with their default values.
+
+        Args:
+            settings_module: Optional settings module to seed from (defaults to self._settings)
+        """
+        if settings_module is None:
+            from ..config import settings as settings_module
+
+        logger.info("Seeding system_config from settings defaults...")
+
+        # Define section mapping for known settings
+        section_mapping = {
+            # Database section
+            "db_host": "database",
+            "db_port": "database",
+            "db_user": "database",
+            "db_password": "database",
+            "db_name": "database",
+
+            # Redis section
+            "redis_host": "redis",
+            "redis_port": "redis",
+            "redis_db": "redis",
+            "redis_password": "redis",
+            "redis_enabled": "redis",
+
+            # LLM section
+            "llm_api_key": "llm",
+            "llm_base_url": "llm",
+            "llm_model_name": "llm",
+
+            # Notifications section
+            "ding_robots": "notifications",
+            "tg_robots": "notifications",
+            "feishu_robots": "notifications",
+
+            # Scheduler section
+            "fetch_interval_hours": "scheduler",
+            "summary_hour": "scheduler",
+            "summary_minute": "scheduler",
+
+            # Breaking News section
+            "enable_breaking_news": "breaking",
+            "breaking_rag_enabled": "breaking",
+            "breaking_rag_dataset_name": "breaking",
+            "breaking_rag_dataset_id": "breaking",
+            "breaking_embedding_model": "breaking",
+            "breaking_rag_similarity_threshold": "breaking",
+            "breaking_impact_threshold": "breaking",
+            "breaking_fetch_interval_minutes": "breaking",
+            "breaking_push_dingtalk": "breaking",
+            "breaking_push_telegram": "breaking",
+            "breaking_story_lookback_days": "breaking",
+            "breaking_processor_concurrency": "breaking",
+            "breaking_processor_batch_size": "breaking",
+            "breaking_context_recent_events": "breaking",
+            "breaking_context_active_stories": "breaking",
+            "breaking_min_content_length": "breaking",
+            "breaking_max_title_retries": "breaking",
+
+            # Twitter section
+            "enable_twitter_alerts": "twitter",
+            "twitter_push_dingtalk": "twitter",
+            "twitter_push_telegram": "twitter",
+            "twitter_impact_threshold": "twitter",
+            "twitter_event_lookback_minutes": "twitter",
+            "twitter_event_push_threshold": "twitter",
+            "twitter_account_cooling_minutes": "twitter",
+            "twitter_request_delay_seconds": "twitter",
+
+            # Knowledge Graph section
+            "kg_enabled": "knowledge_graph",
+            "dgraph_alpha_url": "knowledge_graph",
+
+            # RAGFlow section
+            "ragflow_enabled": "ragflow",
+            "ragflow_api_url": "ragflow",
+            "ragflow_api_key": "ragflow",
+            "ragflow_dataset_id": "ragflow",
+
+            # AStock section
+            "enable_astock_analysis": "astock",
+            "astock_pre_market_hour": "astock",
+            "astock_pre_market_minute": "astock",
+            "astock_intraday_hour": "astock",
+            "astock_intraday_minute": "astock",
+            "astock_post_market_hour": "astock",
+            "astock_post_market_minute": "astock",
+            "astock_push_telegram": "astock",
+            "astock_push_dingtalk": "astock",
+            "astock_semantic_threshold": "astock",
+            "astock_query_template": "astock",
+            "astock_news_hours": "astock",
+            "enable_astock_alert": "astock",
+            "astock_alert_threshold": "astock",
+            "astock_alert_volume_multiplier": "astock",
+            "astock_alert_check_interval": "astock",
+            "astock_alert_push_telegram": "astock",
+            "astock_alert_push_dingtalk": "astock",
+
+            # Prompts section
+            "prompt_breaking_onepass": "prompts",
+            "prompt_breaking_onepass_english": "prompts",
+            "prompt_breaking_onepass_retry": "prompts",
+            "prompt_twitter_onepass": "prompts",
+            "prompt_daily_onepass": "prompts",
+            "prompt_overview": "prompts",
+            "prompt_critique": "prompts",
+            "prompt_translate_titles": "prompts",
+            "prompt_twitter_batch_triage": "prompts",
+        }
+
+        # Get actual settings fields via pydantic model_fields (not dir which includes internals)
+        configs_to_seed = []
+
+        try:
+            field_names = list(settings_module.model_fields.keys())
+        except AttributeError:
+            field_names = [f for f in dir(settings_module) if not f.startswith("_") and not callable(getattr(settings_module, f, None))]
+
+        for field_name in field_names:
+            try:
+                value = getattr(settings_module, field_name)
+            except AttributeError:
+                continue
+
+            if callable(value):
+                continue
+
+            # Determine section
+            section = section_mapping.get(field_name, "general")
+
+            # Determine value type
+            if isinstance(value, bool):
+                value_type = "bool"
+            elif isinstance(value, int):
+                value_type = "int"
+            elif isinstance(value, float):
+                value_type = "float"
+            elif isinstance(value, (list, dict)):
+                import json
+                try:
+                    # Handle pydantic model instances
+                    value = json.dumps(value, default=lambda o: o.model_dump() if hasattr(o, 'model_dump') else str(o))
+                except (TypeError, ValueError):
+                    value = str(value)
+                value_type = "json"
+            else:
+                value_type = "string"
+
+            # Skip empty string values for sensitive fields
+            if value == "" and field_name in ("llm_api_key", "db_password", "redis_password", "ragflow_api_key"):
+                continue
+
+            configs_to_seed.append({
+                "section": section,
+                "key": field_name.upper(),
+                "value": str(value),
+                "value_type": value_type,
+                "description": f"Seeded from settings default",
+                "is_editable": True
+            })
+
+        # Batch insert all configs
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    for config in configs_to_seed:
+                        query = """
+                        INSERT INTO omnidigest.system_config (id, section, key, value, value_type, description, is_editable, "updated_at")
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                        ON CONFLICT (section, key) DO NOTHING
+                        """
+                        import uuid
+                        cur.execute(query, (
+                            str(uuid.uuid4()),
+                            config["section"],
+                            config["key"],
+                            config["value"],
+                            config["value_type"],
+                            config["description"],
+                            config["is_editable"]
+                        ))
+                conn.commit()
+            logger.info(f"Seeded {len(configs_to_seed)} config entries from settings defaults")
+        except Exception as e:
+            logger.error(f"Failed to seed default config: {e}")
+            raise
