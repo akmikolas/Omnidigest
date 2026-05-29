@@ -177,7 +177,22 @@ def step_seed_config():
     from src.config import settings
     from src.core.database import DatabaseManager
     db = DatabaseManager()
-    if not db.has_config_entries():
+    try:
+        has_entries = db.has_config_entries()
+    except Exception:
+        logger.warning('system_config table missing, creating it now...')
+        run_psql("""
+        CREATE TABLE IF NOT EXISTS omnidigest.system_config (
+            id UUID PRIMARY KEY, section VARCHAR(50) NOT NULL, key VARCHAR(100) NOT NULL,
+            value TEXT, value_type VARCHAR(20) DEFAULT 'string', description VARCHAR(255),
+            is_editable BOOLEAN DEFAULT TRUE, "created_at" TIMESTAMP DEFAULT NOW(),
+            "updated_at" TIMESTAMP DEFAULT NOW(), UNIQUE(section, key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_sys_config_section ON omnidigest.system_config(section);
+        """)
+        has_entries = False
+
+    if not has_entries:
         db.seed_default_config(settings)
         logger.info('Config seeded from defaults.')
     else:
