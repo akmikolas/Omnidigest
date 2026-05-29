@@ -6,11 +6,11 @@
 [![Python 版本](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 [![Vue 3](https://img.shields.io/badge/Vue-3+-42b883.svg)](https://vuejs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
-[![版本](https://img.shields.io/badge/Version-2.3.2-6366f1.svg)](https://github.com/akmikolas/Omnidigest)
+[![版本](https://img.shields.io/badge/Version-2.3.37-6366f1.svg)](https://github.com/akmikolas/Omnidigest)
 
 *自动化 AI 驱动的新闻聚合、分类与摘要系统，具备实时情报监测能力*
 
-[**English**](./README.md) | [**快速开始**](#2-快速开始) | [**功能特性**](#4-核心功能) | [**部署**](#22-docker-推荐)
+[**English**](./README.md) | [**快速开始**](#2-快速开始) | [**功能特性**](#5-核心功能) | [**部署**](#22-docker-推荐)
 
 </div>
 
@@ -70,62 +70,69 @@ OmniDigest 是一个高度自动化的 AI 驱动的新闻情报平台，彻底�
 
 ## 2. 快速开始
 
-### 2.1 环境要求
-
-- **Docker & Docker Compose**: [安装 Docker Desktop](https://www.docker.com/products/docker-desktop)
-- **Python 3.9+**（本地开发用）
-- **PostgreSQL 15+**（包含在 docker-compose 中）
-- **Redis**（可选，用于缓存）
-- **Dgraph**（可选，用于知识图谱）
-
-### 2.2 Docker（推荐）
+### 2.1 一条命令启动（v2.3.37+）
 
 ```bash
 # 1. 克隆仓库
 git clone https://github.com/akmikolas/Omnidigest.git
 cd omnidigest
 
-# 2. 复制环境模板
+# 2. 复制开发配置（如需使用 LLM，编辑 .env 填入 LLM_API_KEY）
+cp .env.dev .env
+
+# 3. 启动基础设施（一次性，长期运行）
+./dev-build.sh --infra
+
+# 4. 构建并启动应用
+./dev-build.sh
+```
+
+首次启动时，系统会自动生成 API Key 并打印到控制台：
+
+```
+============================================
+  DEFAULT API KEY CREATED
+  omni-init:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+============================================
+```
+
+打开 `http://localhost:3000`，在登录框中输入此 Key，即可使用。
+
+**全自动初始化**（无需手动执行任何 CLI 命令）：
+- 数据库表自动创建（含 `api_keys`）
+- 默认 API Key 自动生成
+- LLM 模型自动从 `.env` 注册
+- 系统配置自动填充
+
+### 2.2 Docker（推荐）
+
+```bash
+# 克隆并配置
+git clone https://github.com/akmikolas/Omnidigest.git
+cd omnidigest
 cp .env.example .env
 
-# 3. 编辑 .env 配置
-# 必填：DB_PASSWORD, LLM_API_KEY, TG_ROBOTS/DING_ROBOTS
+# 启动全部服务
+docker-compose -f docker-compose.infra.yml up -d   # 基础设施
+docker-compose up -d --build                        # 应用服务
 
-# 4. 启动所有服务
-docker-compose up -d
+# 获取自动生成的 API Key
+docker-compose exec backend cat /data/init_api_key.txt
 
-# 5. 访问应用
 # 前端：http://localhost:3000
-# API：http://localhost:8080/api/health
+# API：http://localhost:7080/api/health
 ```
 
 ### 2.3 本地开发
 
 ```bash
-# 1. 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 2. 安装依赖
+# 后端
 cd backend
 pip install -e .
+cp ../.env.dev .env
+python src/main.py
 
-# 3. 通过 Docker 启动 PostgreSQL
-docker run -d --name omnidigest_postgres \
-  -e POSTGRES_USER=omnidigest \
-  -e POSTGRES_PASSWORD=your_password \
-  -e POSTGRES_DB=omnidigest \
-  -p 5432:5432 \
-  postgres:15-alpine
-
-# 4. 配置环境变量
-cp .env.example .env
-# 编辑 .env 填入配置
-
-# 5. 启动应用
-python -m omnidigest.main
-
-# 6. 启动前端（另一终端）
+# 前端（另一终端）
 cd frontend
 npm install
 npm run dev
@@ -135,61 +142,77 @@ npm run dev
 
 ```bash
 # 检查 API 健康状态
-curl http://localhost:8080/api/health
-
-# 预期返回：
-# {"status":"ok","scheduler_running":true}
+curl http://localhost:7080/api/health
+# → {"status":"ok","scheduler_running":false}
 
 # 访问前端：http://localhost:3000
 ```
 
 ---
 
-## 3. 项目结构
+## 3. dev-build.sh 命令
+
+统一的构建、测试、发布脚本：
+
+```bash
+./dev-build.sh                      # 构建 + 启动 + 健康检查（开发模式）
+./dev-build.sh --backend-only       # 仅重建后端
+./dev-build.sh --frontend-only      # 仅重建前端
+./dev-build.sh --skip-build         # 跳过构建，仅启动/测试
+./dev-build.sh --infra              # 仅启动/重启基础设施
+./dev-build.sh --down               # 停止应用容器（保留基础设施）
+./dev-build.sh --down-all           # 停止全部容器
+./dev-build.sh --release v2.3.37    # 发布：构建 → 测试 → 推送到 Harbor
+./dev-build.sh --release v2.3.37 --force  # 强制覆盖 Harbor 已有标签
+```
+
+基础设施（PostgreSQL、Redis、Dgraph）通过 `docker-compose.infra.yml` 独立运行，不会随应用重建而重启。
+
+---
+
+## 4. 项目结构
 
 ```
 .
-├── backend/                  # Python 后端 (OmniDigest)
-│   ├── src/omnidigest/     # 核心包
-│   │   ├── api/            # FastAPI 路由与依赖
-│   │   ├── cli/            # CLI 命令处理器
-│   │   ├── core/           # 基础设施（配置、数据库、LLM）
-│   │   ├── domains/        # 领域业务模块
-│   │   │   ├── ingestion/  # RSS 与 Twitter 数据获取
-│   │   │   ├── breaking_news/  # 突发新闻流水线
-│   │   │   ├── daily_digest/   # 每日摘要处理
+├── backend/                     # Python 后端 (FastAPI)
+│   ├── src/                     # 源代码
+│   │   ├── api/                 # FastAPI 路由与依赖
+│   │   ├── cli/                 # CLI 命令处理器
+│   │   ├── core/                # 基础设施（配置、数据库、LLM、缓存）
+│   │   ├── domains/             # 领域业务模块
+│   │   │   ├── ingestion/       # RSS 与 Twitter 数据获取
+│   │   │   ├── breaking_news/   # 突发新闻流水线
+│   │   │   ├── daily_digest/    # 每日摘要处理
 │   │   │   ├── knowledge_graph/ # Dgraph 三元组抽取
-│   │   │   └── analysis/   # A 股市场分析
-│   │   ├── jobs/           # 后台调度器
-│   │   ├── migrations/     # 数据库迁移
-│   │   ├── notifications/  # 多平台推送
-│   │   ├── templates/      # Jinja2 通知模板
-│   │   ├── main.py        # 应用入口
-│   │   ├── manage.py      # CLI 管理工具
-│   │   └── config.py      # 配置
-│   ├── pyproject.toml     # Python 包配置
-│   ├── requirements.txt   # 依赖
-│   ├── Makefile          # CLI 快捷方式
-│   └── Dockerfile        # 容器构建
-├── frontend/                 # Vue 3 + Vite 前端
-│   ├── src/               # 前端源码
-│   │   ├── views/         # 页面组件
-│   │   ├── api/           # API 客户端
-│   │   └── router/        # Vue Router
-│   ├── public/            # 静态资源与 Logo
-│   ├── package.json       # 依赖
-│   ├── vite.config.js    # Vite 配置
-│   └── Dockerfile        # 容器构建
-├── docs/                    # 文档
-├── docker-compose.yml       # 容器编排
-└── README.md              # 本文件
+│   │   │   └── analysis/        # A 股市场分析
+│   │   ├── jobs/                # 后台调度器
+│   │   ├── migrations/          # 数据库迁移
+│   │   ├── notifications/       # 多平台推送
+│   │   ├── templates/           # Jinja2 通知模板
+│   │   ├── main.py              # 应用入口
+│   │   ├── manage.py            # CLI 管理工具
+│   │   ├── bootstrap.py         # 首次启动自动初始化
+│   │   └── config.py            # 配置
+│   ├── docker-entrypoint.sh     # Docker 入口脚本（调用 bootstrap）
+│   ├── Dockerfile               # 容器构建
+│   ├── Makefile                 # CLI 快捷方式
+│   └── requirements.txt         # 依赖
+├── frontend/                    # Vue 3 + Vite 前端
+│   ├── src/views/               # 页面组件
+│   ├── src/api/                 # API 客户端
+│   └── src/router/              # Vue Router
+├── dev-build.sh                 # 统一构建/测试/发布脚本
+├── docker-compose.infra.yml     # 纯基础设施（长期运行）
+├── docker-compose.yml           # 应用服务
+├── .env.dev                     # 开发环境配置模板
+└── README-zh.md                 # 本文件
 ```
 
 ---
 
-## 4. 核心功能
+## 5. 核心功能
 
-### 4.1 每日简报流水线
+### 5.1 每日简报流水线
 
 完整的自动化新闻处理工作流：
 
@@ -198,7 +221,7 @@ curl http://localhost:8080/api/health
 3. **AI 摘要** - 双语 Jinja2 模板，支持 Telegram HTML、钉钉与飞书 Markdown
 4. **自动清理** - 每日删除低质量文章
 
-### 4.2 突发新闻系统
+### 5.2 突发新闻系统
 
 具备企业级可靠性的实时新闻告警流水线：
 
@@ -208,7 +231,7 @@ curl http://localhost:8080/api/health
 - **交叉验证** - 故事需 2+ 独立来源才触发告警
 - **影响评分** - 0-100 分，仅 >80 分触发即时告警
 
-### 4.3 推特情报
+### 5.3 推特情报
 
 监控全球影响者和世界领导人：
 
@@ -217,7 +240,7 @@ curl http://localhost:8080/api/health
 - **精细路由** - 每个机器人独立启用/禁用和自定义模板
 - **影响追踪** - 监控 16+ 高影响力账户
 
-### 4.4 知识图谱
+### 5.4 知识图谱
 
 实体和关系抽取流水线：
 
@@ -226,7 +249,7 @@ curl http://localhost:8080/api/health
 - **实体消解** - 自动去重和合并
 - **自动抽取** - 每 15 分钟自动运行
 
-### 4.5 A 股市场分析
+### 5.5 A 股市场分析
 
 自动化的中国股市趋势分析：
 
@@ -235,7 +258,7 @@ curl http://localhost:8080/api/health
 - **两阶段分析** - 盘前 (8:30) + 盘中 (14:30)
 - **准确率追踪** - 预测历史与准确率指标
 
-### 4.6 One-Pass 框架
+### 5.6 One-Pass 框架
 
 通用统一 AI 分析框架：
 
@@ -243,12 +266,12 @@ curl http://localhost:8080/api/health
 # 将多个处理步骤合并为单次 LLM 调用
 - 分类 + 评分 + 聚类 → 一次请求
 - 可配置上下文提供者（最近事件、活跃故事、RAG）
-# 环境变量提示词覆盖
+- 环境变量提示词覆盖
 ```
 
 ---
 
-## 5. 配置说明
+## 6. 配置说明
 
 所有设置通过 `.env` 文件管理：
 
@@ -285,7 +308,7 @@ FEISHU_ROBOTS='[{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/..
 
 ---
 
-## 6. Makefile 命令
+## 7. Makefile 命令
 
 ```bash
 make help              # 显示所有命令
@@ -302,13 +325,14 @@ make test-push         # 测试全平台推送
 
 ---
 
-## 7. API 接口
+## 8. API 接口
 
-所有接口需要 `X-API-Key` 头认证。
+所有接口需要 `X-API-Key` 头认证（健康检查除外）。
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/health` | GET | 健康检查 |
+| `/api/health` | GET | 健康检查（无需认证） |
+| `/api/bootstrap/status` | GET | 首次启动状态（无需认证） |
 | `/api/trigger/fetch` | POST | 触发新闻抓取 |
 | `/api/trigger/process` | POST | 触发 LLM 分类 |
 | `/api/trigger/summary` | POST | 触发每日摘要 |
@@ -320,14 +344,15 @@ make test-push         # 测试全平台推送
 
 ---
 
-## 8. 前端
+## 9. 前端
 
 现代 Vue 3 + Vite 单页应用，包含：
 
 - **仪表板** - 系统概览与统计
-- **订阅源** - RSS 源管理
-- **配置** - 系统配置
+- **A 股分析** - A 股市场分析
 - **知识图谱** - 交互式实体可视化
+- **系统配置** - 运行时配置，支持暗色模式和搜索
+- **RSS 订阅源** - 源管理
 - **Token 统计** - LLM 使用量追踪
 - **PWA 支持** - 可安装的网页应用
 
@@ -340,7 +365,7 @@ npm run build   # 生产构建
 
 ---
 
-## 9. 技术栈
+## 10. 技术栈
 
 <div align="center">
 
@@ -349,15 +374,15 @@ npm run build   # 生产构建
 | 后端 | FastAPI, Python 3.9+, Uvicorn |
 | 数据库 | PostgreSQL 15+, Dgraph |
 | 缓存 | Redis 8+ |
-| AI/ML | OpenAI, Claude, DeepSeek, DashScope |
-| 前端 | Vue 3, Vite, Chart.js |
+| AI/ML | OpenAI, Claude, DeepSeek, DashScope, MiniMax |
+| 前端 | Vue 3, Vite, Chart.js, D3.js |
 | 部署 | Docker, Docker Compose |
 
 </div>
 
 ---
 
-## 10. 文档
+## 11. 文档
 
 - [变更日志](./docs/change_log.md) - 版本历史
 - [Python 注释标准](./docs/PYTHON_COMMENTING_STANDARD.md) - 双语文档字符串约定
@@ -365,13 +390,13 @@ npm run build   # 生产构建
 
 ---
 
-## 11. 许可证
+## 12. 许可证
 
 MIT 许可证 - 详见 [LICENSE](LICENSE)。
 
 ---
 
-## 12. 贡献指南
+## 13. 贡献指南
 
 欢迎贡献！请随时提交 Pull Request。
 
@@ -390,7 +415,7 @@ git push origin feature/amazing-feature
 
 <div align="center">
 
-*版本 2.3.2 | 最后更新：2026-03-17*
+*版本 2.3.37 | 最后更新：2026-05-29*
 
 **OmniDigest** - 您的 AI 驱动的新闻情报平台
 

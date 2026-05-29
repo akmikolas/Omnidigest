@@ -6,11 +6,11 @@
 [![Python Version](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 [![Vue 3](https://img.shields.io/badge/Vue-3+-42b883.svg)](https://vuejs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Version](https://img.shields.io/badge/Version-2.3.14-6366f1.svg)](https://github.com/akmikolas/Omnidigest)
+[![Version](https://img.shields.io/badge/Version-2.3.37-6366f1.svg)](https://github.com/akmikolas/Omnidigest)
 
 *Automated AI-powered news aggregation, classification, and summarization system with real-time intelligence monitoring*
 
-[**简体中文**](./README-zh.md) | [**快速开始**](#2-quick-start) | [**功能特性**](#4-core-features) | [**部署**](#22-docker-recommended)
+[**简体中文**](./README-zh.md) | [**Quick Start**](#2-quick-start) | [**Features**](#4-core-features) | [**Deploy**](#22-docker-recommended)
 
 </div>
 
@@ -70,62 +70,69 @@ OmniDigest is a fully automated, AI-driven news intelligence platform that trans
 
 ## 2. Quick Start
 
-### 2.1 Prerequisites
+### 2.1 One Command Startup (v2.3.37+)
 
-- **Docker & Docker Compose**: [Install Docker Desktop](https://www.docker.com/products/docker-desktop)
-- **Python 3.9+** (for local development)
-- **PostgreSQL 15+** (included in docker-compose)
-- **Redis** (optional, for caching)
-- **Dgraph** (optional, for Knowledge Graph)
+```bash
+# 1. Clone and enter
+git clone https://github.com/akmikolas/Omnidigest.git
+cd omnidigest
+
+# 2. Copy dev config (edit LLM_API_KEY if needed)
+cp .env.dev .env
+
+# 3. Start infrastructure (one-time, runs indefinitely)
+./dev-build.sh --infra
+
+# 4. Build and launch the application
+./dev-build.sh
+```
+
+On first launch, an API key is automatically generated and printed to the console:
+
+```
+============================================
+  DEFAULT API KEY CREATED
+  omni-init:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+============================================
+```
+
+Open `http://localhost:3000`, enter this key in the login modal, and you're ready to go.
+
+**Automated bootstrap** (no manual CLI steps required):
+- Database tables created automatically (including `api_keys`)
+- Default API key generated
+- LLM model auto-registered from `.env`
+- System config seeded with defaults
 
 ### 2.2 Docker (Recommended)
 
 ```bash
-# 1. Clone the repository
+# Clone and configure
 git clone https://github.com/akmikolas/Omnidigest.git
 cd omnidigest
-
-# 2. Copy environment template
 cp .env.example .env
 
-# 3. Edit .env with your configuration
-# Required: DB_PASSWORD, LLM_API_KEY, TG_ROBOTS/DING_ROBOTS
+# Start all services
+docker-compose -f docker-compose.infra.yml up -d   # infrastructure
+docker-compose up -d --build                        # application
 
-# 4. Start all services
-docker-compose up -d
+# Get auto-generated API key
+docker-compose exec backend cat /data/init_api_key.txt
 
-# 5. Access the application
 # Frontend: http://localhost:3000
-# API: http://localhost:8080/api/health
+# API: http://localhost:7080/api/health
 ```
 
 ### 2.3 Local Development
 
 ```bash
-# 1. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 2. Install dependencies
+# Backend
 cd backend
 pip install -e .
+cp ../.env.dev .env
+python src/main.py
 
-# 3. Start PostgreSQL via Docker
-docker run -d --name omnidigest_postgres \
-  -e POSTGRES_USER=omnidigest \
-  -e POSTGRES_PASSWORD=your_password \
-  -e POSTGRES_DB=omnidigest \
-  -p 5432:5432 \
-  postgres:15-alpine
-
-# 4. Configure environment
-cp .env.example .env
-# Edit .env with your settings
-
-# 5. Start the application
-python -m omnidigest.main
-
-# 6. Start frontend (in another terminal)
+# Frontend (another terminal)
 cd frontend
 npm install
 npm run dev
@@ -135,61 +142,77 @@ npm run dev
 
 ```bash
 # Check API health
-curl http://localhost:8080/api/health
+curl http://localhost:7080/api/health
+# → {"status":"ok","scheduler_running":false}
 
-# Expected response:
-# {"status":"ok","scheduler_running":true}
-
-# Access frontend at http://localhost:3000
+# Frontend at http://localhost:3000
 ```
 
 ---
 
-## 3. Project Structure
+## 3. dev-build.sh Commands
+
+Unified build/test/deploy script for development and production:
+
+```bash
+./dev-build.sh                      # Build + start + health check (dev)
+./dev-build.sh --backend-only       # Rebuild backend only
+./dev-build.sh --frontend-only      # Rebuild frontend only
+./dev-build.sh --skip-build         # Skip build, just start/test
+./dev-build.sh --infra              # Start/restart infrastructure only
+./dev-build.sh --down               # Stop app containers (keep infra)
+./dev-build.sh --down-all           # Stop all containers
+./dev-build.sh --release v2.3.37    # Build → test → push to Harbor
+./dev-build.sh --release v2.3.37 --force  # Force overwrite Harbor tag
+```
+
+Infrastructure (PostgreSQL, Redis, Dgraph) runs separately via `docker-compose.infra.yml` and persists across app rebuilds.
+
+---
+
+## 4. Project Structure
 
 ```
 .
-├── backend/                  # Python backend (OmniDigest)
-│   ├── src/omnidigest/     # Core package
-│   │   ├── api/            # FastAPI routes & dependencies
-│   │   ├── cli/            # CLI command handlers
-│   │   ├── core/           # Infrastructure (Config, DB, LLM)
-│   │   ├── domains/        # Feature-based domain modules
-│   │   │   ├── ingestion/  # RSS & Twitter data ingestion
-│   │   │   ├── breaking_news/  # Breaking news pipeline
-│   │   │   ├── daily_digest/   # Daily summary processing
+├── backend/                     # Python backend (FastAPI)
+│   ├── src/                     # Source code
+│   │   ├── api/                 # FastAPI routes & dependencies
+│   │   ├── cli/                 # CLI command handlers
+│   │   ├── core/                # Infrastructure (Config, DB, LLM, Cache)
+│   │   ├── domains/             # Feature-based domain modules
+│   │   │   ├── ingestion/       # RSS & Twitter data ingestion
+│   │   │   ├── breaking_news/   # Breaking news pipeline
+│   │   │   ├── daily_digest/    # Daily summary processing
 │   │   │   ├── knowledge_graph/ # Dgraph triple extraction
-│   │   │   └── analysis/   # A-share market analysis
-│   │   ├── jobs/           # Background scheduler
-│   │   ├── migrations/     # Database migrations
-│   │   ├── notifications/  # Multi-platform push
-│   │   ├── templates/      # Jinja2 notification templates
-│   │   ├── main.py        # Application entry
-│   │   ├── manage.py      # CLI management tool
-│   │   └── config.py      # Configuration
-│   ├── pyproject.toml     # Python package config
-│   ├── requirements.txt   # Dependencies
-│   ├── Makefile          # CLI shortcuts
-│   └── Dockerfile        # Container build
-├── frontend/                 # Vue 3 + Vite frontend
-│   ├── src/               # Frontend source
-│   │   ├── views/         # Page components
-│   │   ├── api/           # API client
-│   │   └── router/        # Vue Router
-│   ├── public/            # Static assets & logos
-│   ├── package.json       # Dependencies
-│   ├── vite.config.js     # Vite config
-│   └── Dockerfile         # Container build
-├── docs/                    # Documentation
-├── docker-compose.yml       # Container orchestration
-└── README.md               # This file
+│   │   │   └── analysis/        # A-share market analysis
+│   │   ├── jobs/                # Background scheduler
+│   │   ├── migrations/          # Database migrations
+│   │   ├── notifications/       # Multi-platform push
+│   │   ├── templates/           # Jinja2 notification templates
+│   │   ├── main.py              # Application entry
+│   │   ├── manage.py            # CLI management tool
+│   │   ├── bootstrap.py         # First-launch auto-initializer
+│   │   └── config.py            # Configuration
+│   ├── docker-entrypoint.sh     # Docker entrypoint (calls bootstrap)
+│   ├── Dockerfile               # Container build
+│   ├── Makefile                 # CLI shortcuts
+│   └── requirements.txt         # Dependencies
+├── frontend/                    # Vue 3 + Vite frontend
+│   ├── src/views/               # Page components
+│   ├── src/api/                 # API client
+│   └── src/router/              # Vue Router
+├── dev-build.sh                 # Unified build/test/deploy script
+├── docker-compose.infra.yml     # Infrastructure only (long-running)
+├── docker-compose.yml           # Application services
+├── .env.dev                     # Dev environment config template
+└── README.md                    # This file
 ```
 
 ---
 
-## 4. Core Features
+## 5. Core Features
 
-### 4.1 Daily Digest Pipeline
+### 5.1 Daily Digest Pipeline
 
 A complete automated news processing workflow:
 
@@ -198,7 +221,7 @@ A complete automated news processing workflow:
 3. **AI Summarization** - Bilingual Jinja2 templates for Telegram HTML, DingTalk & Feishu Markdown
 4. **Auto Cleanup** - Daily removal of low-quality articles
 
-### 4.2 Breaking News System
+### 5.2 Breaking News System
 
 Real-time news alert pipeline with enterprise-grade reliability:
 
@@ -208,7 +231,7 @@ Real-time news alert pipeline with enterprise-grade reliability:
 - **Cross-Verification** - Story requires 2+ independent sources before alert
 - **Impact Scoring** - 0-100 score, only >80 triggers instant alerts
 
-### 4.3 Twitter Intelligence
+### 5.3 Twitter Intelligence
 
 Monitor global influencers and world leaders:
 
@@ -217,7 +240,7 @@ Monitor global influencers and world leaders:
 - **Granular Routing** - Per-robot enable/disable and custom templates
 - **Influence Tracking** - 16+ high-profile accounts monitored
 
-### 4.4 Knowledge Graph
+### 5.4 Knowledge Graph
 
 Entity and relationship extraction pipeline:
 
@@ -226,7 +249,7 @@ Entity and relationship extraction pipeline:
 - **Entity Resolution** - Automatic deduplication and merging
 - **Auto Extraction** - Runs every 15 minutes automatically
 
-### 4.5 A-Share Market Analysis
+### 5.5 A-Share Market Analysis
 
 Automated China stock market trend analysis:
 
@@ -235,7 +258,7 @@ Automated China stock market trend analysis:
 - **Two-Stage Analysis** - Pre-market (8:30) + Intraday (14:30)
 - **Accuracy Tracking** - Prediction history with accuracy metrics
 
-### 4.6 One-Pass Framework
+### 5.6 One-Pass Framework
 
 Generic unified AI analysis framework:
 
@@ -248,7 +271,7 @@ Generic unified AI analysis framework:
 
 ---
 
-## 5. Configuration
+## 6. Configuration
 
 All settings via `.env` file:
 
@@ -285,7 +308,7 @@ FEISHU_ROBOTS='[{"webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/..
 
 ---
 
-## 6. Makefile Commands
+## 7. Makefile Commands
 
 ```bash
 make help              # Show all commands
@@ -302,13 +325,14 @@ make test-push         # Test all platforms
 
 ---
 
-## 7. API Endpoints
+## 8. API Endpoints
 
-All endpoints require `X-API-Key` header authentication.
+All endpoints require `X-API-Key` header authentication (except health).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/health` | GET | Health check |
+| `/api/health` | GET | Health check (no auth) |
+| `/api/bootstrap/status` | GET | First-launch bootstrap status (no auth) |
 | `/api/trigger/fetch` | POST | Trigger news crawling |
 | `/api/trigger/process` | POST | Trigger LLM classification |
 | `/api/trigger/summary` | POST | Trigger daily summary |
@@ -320,14 +344,15 @@ All endpoints require `X-API-Key` header authentication.
 
 ---
 
-## 8. Frontend
+## 9. Frontend
 
 Modern Vue 3 + Vite SPA with:
 
 - **Dashboard** - System overview and statistics
-- **Sources** - RSS feed management
-- **Config** - System configuration
+- **A-Stock** - A-share market analysis
 - **Knowledge Graph** - Interactive entity visualization
+- **Configuration** - Runtime config with dark mode and search
+- **RSS Sources** - Feed management
 - **Token Stats** - LLM usage tracking
 - **PWA Support** - Installable web app
 
@@ -340,7 +365,7 @@ npm run build   # Production build
 
 ---
 
-## 9. Tech Stack
+## 10. Tech Stack
 
 <div align="center">
 
@@ -349,15 +374,15 @@ npm run build   # Production build
 | Backend | FastAPI, Python 3.9+, Uvicorn |
 | Database | PostgreSQL 15+, Dgraph |
 | Cache | Redis 8+ |
-| AI/ML | OpenAI, Claude, DeepSeek, DashScope |
-| Frontend | Vue 3, Vite, Chart.js |
+| AI/ML | OpenAI, Claude, DeepSeek, DashScope, MiniMax |
+| Frontend | Vue 3, Vite, Chart.js, D3.js |
 | Deployment | Docker, Docker Compose |
 
 </div>
 
 ---
 
-## 10. Documentation
+## 11. Documentation
 
 - [Change Log](./docs/change_log.md) - Version history
 - [Python Commenting Standard](./docs/PYTHON_COMMENTING_STANDARD.md) - Bilingual docstring conventions
@@ -365,13 +390,13 @@ npm run build   # Production build
 
 ---
 
-## 11. License
+## 12. License
 
 MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-## 12. Contributing
+## 13. Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -390,7 +415,7 @@ git push origin feature/amazing-feature
 
 <div align="center">
 
-*Version 2.3.4 | Last Updated: 2026-03-18*
+*Version 2.3.37 | Last Updated: 2026-05-29*
 
 **OmniDigest** - Your AI-Powered News Intelligence Platform
 
