@@ -531,14 +531,14 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
         ]
         try:
             with self._get_connection() as conn:
+                conn.autocommit = True
                 with conn.cursor() as cur:
                     for query in queries:
                         try:
                             cur.execute(query)
                         except Exception as qe:
                             logger.warning(f"Skipping failed DDL (may already exist): {str(qe)[:120]}")
-                            conn.rollback()
-                conn.commit()
+                conn.autocommit = False
             logger.info("Database initialized successfully under omnidigest schema.")
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
