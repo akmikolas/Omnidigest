@@ -533,7 +533,11 @@ class DatabaseManager(DailyNewsMixin, RssSourcesMixin, FastRssSourcesMixin, Auth
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     for query in queries:
-                        cur.execute(query)
+                        try:
+                            cur.execute(query)
+                        except Exception as qe:
+                            logger.warning(f"Skipping failed DDL (may already exist): {str(qe)[:120]}")
+                            conn.rollback()
                 conn.commit()
             logger.info("Database initialized successfully under omnidigest schema.")
         except Exception as e:
